@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Dash · Project manager</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%232563eb'/><path d='M9 10l6 6-6 6M17 22h7' stroke='white' stroke-width='3' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>" />
+    <link rel="stylesheet" href="/style.css" />
+    <script>
+      // Áp theme trước khi vẽ trang để không bị nháy
+      try {
+        if (JSON.parse(localStorage.getItem("dash:theme")) === "dark") document.documentElement.dataset.theme = "dark";
+      } catch {}
+    </script>
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="#" data-action="home">
+        <span class="brand-mark">›_</span>
+        <span>Dash</span>
+      </a>
+      <div class="search">
+        <input id="search" type="search" placeholder="Search projects, tags, commands…  ( / )" autocomplete="off" />
+      </div>
+      <div id="topbar-stats" class="topbar-stats"></div>
+      <div class="topbar-actions">
+        <button class="btn ghost" data-action="ports" title="Listening ports">Ports</button>
+        <button class="btn ghost" data-action="scan" title="Scan a folder for projects">Scan</button>
+        <button class="btn ghost" data-action="settings" title="General settings">Settings</button>
+        <button class="btn ghost icon-btn" data-action="theme" id="theme-toggle" title="Toggle light/dark theme">☾</button>
+        <button class="btn primary" data-action="add-project">+ Add project</button>
+      </div>
+    </header>
+
+    <div class="layout">
+      <aside class="sidebar">
+        <button class="nav-home" data-action="home">Overview</button>
+        <div class="sidebar-title">Projects <span id="project-count"></span></div>
+        <ul id="project-list" class="project-list"></ul>
+      </aside>
+      <main id="main" class="main"></main>
+    </div>
+
+    <dialog id="modal" class="modal"></dialog>
+    <div id="toasts" class="toasts"></div>
+    <script src="/app.js"></script>
+  </body>
+</html>

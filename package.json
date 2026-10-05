@@ -1,0 +1,15 @@
+{
+  "name": "dash",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Dashboard local quản lý dự án: lệnh chạy, tiến trình, môi trường ảo, thư viện",
+  "license": "MIT",
+  "main": "server.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "check": "node --check server.js && for f in src/*.js public/app.js; do node --check \"$f\" || exit 1; done"
+  }
+}
