@@ -218,3 +218,9 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Dash: cấu hình và dữ liệu chạy local, không commit
+projects.json
+projects.json.tmp
+.dash-state.json
+logs/
