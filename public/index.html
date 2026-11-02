@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Dash</title>
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="theme-color" content="#1e2227" />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%23528bff'/><path d='M9 10l6 6-6 6M17 22h7' stroke='white' stroke-width='3' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>" />
+    <link rel="stylesheet" href="/vendor/xterm/css/xterm.css" />
+    <link rel="stylesheet" href="/style.css" />
+    <link rel="stylesheet" href="/workbench.css" />
+    <script>
+      // Áp theme trước khi vẽ trang để không bị nháy (mặc định One Dark Pro)
+      try {
+        if (JSON.parse(localStorage.getItem("dash:theme") || '"dark"') === "dark") document.documentElement.dataset.theme = "dark";
+      } catch {}
+    </script>
+  </head>
+  <body>
+    <div class="wb">
+      <header class="titlebar">
+        <a class="brand" href="#" data-action="home" title="Projects overview">
+          <span class="brand-mark">›_</span>
+        </a>
+        <div class="ws-tabs" id="ws-tabs"></div>
+        <button class="folder-pick" id="folder-pick" title="Current folder (used by Explorer, Source Control, History, new terminals)"></button>
+        <button class="quick-open" id="quick-open" title="Go to file (Ctrl+P) · Commands (Ctrl+Shift+P)"><span>Search files, commands…</span><kbd>Ctrl P</kbd></button>
+        <div class="titlebar-actions">
+          <button class="tb-btn" data-cmd="layout.toggleSidebar" title="Toggle side bar">▥</button>
+          <button class="tb-btn" data-cmd="layout.togglePanel" title="Toggle panel">▤</button>
+          <button class="tb-btn" data-cmd="claude.toggle" title="Toggle Claude">✳</button>
+          <button class="tb-btn" data-action="theme" id="theme-toggle" title="Toggle light/dark theme">☾</button>
+        </div>
+      </header>
+
+      <div class="wb-body">
+        <nav class="activitybar" id="activitybar"></nav>
+
+        <aside class="sidebar-pane" id="sidebar">
+          <div class="view" data-view="projects">
+            <div class="view-head"><span>Projects</span>
+              <div class="view-actions">
+                <button class="icon" data-action="scan" title="Scan a folder for projects">⌕</button>
+                <button class="icon" data-action="ports" title="Listening ports">⇄</button>
+                <button class="icon" data-action="add-project" title="Add project">＋</button>
+              </div>
+            </div>
+            <div class="view-body">
+              <div class="side-search"><input id="search" type="search" placeholder="Filter projects…  ( / )" autocomplete="off" /></div>
+              <button class="nav-home" data-action="home">Overview</button>
+              <div class="sidebar-title">Projects <span id="project-count"></span></div>
+              <ul id="project-list" class="project-list"></ul>
+            </div>
+          </div>
+        </aside>
+        <div class="sash sash-v" data-sash="sidebar"></div>
+
+        <section class="center" id="center">
+          <div class="editor-group">
+            <div class="tabbar" id="tabbar"></div>
+            <div class="editors" id="editors">
+              <main id="main" class="main editor-host" data-tab="dashboard"></main>
+            </div>
+          </div>
+          <div class="sash sash-h" data-sash="panel"></div>
+          <div class="panel" id="panel">
+            <div class="panel-tabs" id="panel-tabs"></div>
+            <div class="panel-body" id="panel-body"></div>
+          </div>
+        </section>
+
+        <div class="sash sash-v" data-sash="aux"></div>
+        <aside class="aux" id="aux"></aside>
+      </div>
+
+      <footer class="statusbar" id="statusbar">
+        <div class="sb-left" id="sb-left"><span id="topbar-stats" class="topbar-stats"></span></div>
+        <div class="sb-right" id="sb-right"></div>
+      </footer>
+    </div>
+
+    <div id="palette" class="palette hidden"><input id="palette-input" autocomplete="off" spellcheck="false" /><ul id="palette-list"></ul></div>
+    <dialog id="modal" class="modal"></dialog>
+    <div id="toasts" class="toasts" popover="manual"></div>
+    <div id="ctxmenu" class="ctxmenu hidden"></div>
+
+    <script src="/vendor/xterm/lib/xterm.js"></script>
+    <script src="/vendor/xterm-fit/addon-fit.js"></script>
+    <script src="/vendor/xterm-links/addon-web-links.js"></script>
+    <script src="/vendor/xterm-search/addon-search.js"></script>
+    <script src="/vendor/xterm-unicode/addon-unicode11.js"></script>
+    <script src="/vendor/xterm-webgl/addon-webgl.js"></script>
+    <script src="/vendor/sql-formatter/sql-formatter.min.js"></script>
+    <script src="/app.js"></script>
+    <script src="/js/core.js"></script>
+    <script src="/js/terminal.js"></script>
+    <script src="/js/history.js"></script>
+    <script src="/js/explorer.js"></script>
+    <script src="/js/scm.js"></script>
+    <script src="/js/claude.js"></script>
+    <script src="/js/database.js"></script>
+    <script src="/js/settings.js"></script>
+    <script src="/js/snippets.js"></script>
+    <script src="/js/local-ai.js"></script>
+    <script>W.start();</script>
+  </body>
+</html>
