@@ -30,7 +30,7 @@ async function status(dir) {
     git(top, ["rev-parse", "--verify", "-q", "HEAD"], { allowFail: true }),
   ]);
   const parts = st.stdout.split("\0");
-  const out = { root: top, branch: "", upstream: "", ahead: 0, behind: 0, hasHead: head.ok, staged: [], changes: [], conflicts: [] };
+  const out = { root: top, branch: "", upstream: "", ahead: 0, behind: 0, hasHead: head.ok, head: head.ok ? head.stdout.trim() : "", staged: [], changes: [], conflicts: [] };
   for (let i = 0; i < parts.length; i++) {
     const rec = parts[i];
     if (!rec) continue;

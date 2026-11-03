@@ -23,6 +23,7 @@ const sshForward = require("./src/ssh-forward");
 const localAi = require("./src/local-ai");
 const claudeUpdate = require("./src/claude-update");
 const codeTools = require("./src/code-tools");
+const cryptoPrices = require("./src/crypto-prices");
 const { WebSocketServer } = require("ws");
 
 const PUBLIC_DIR = path.join(__dirname, "public");
@@ -326,6 +327,12 @@ route("DELETE", "/api/ssh/forwards/:fid", (req, { fid }) => {
 
 // ---------- Câu lệnh hay dùng ----------
 route("PUT", "/api/snippets", async (req) => store.updateSection("snippets", (await readBody(req)).snippets));
+// Giá coin ở thanh trạng thái; PUT đổi sàn / thị trường / danh sách coin rồi trả về giá mới
+route("GET", "/api/crypto", (req, p, url) => cryptoPrices.prices(url.searchParams.get("force") === "1"));
+route("PUT", "/api/crypto", async (req) => {
+  store.updateSection("crypto", { ...store.load().crypto, ...(await readBody(req)) });
+  return cryptoPrices.prices();
+});
 
 // ---------- AI local ----------
 route("PUT", "/api/ai", async (req) => {

@@ -327,6 +327,20 @@ body.resizing iframe, body.resizing .xterm { pointer-events: none; }
 .sb-meter.ok { color: var(--green-text); }
 .sb-meter.warn { color: var(--amber-text); }
 .sb-meter.bad { color: var(--red-text); font-weight: 700; }
+.sb-coin { display: inline-flex; gap: 4px; align-items: center; padding: 0 3px; }
+.sb-coin b { font-weight: 600; color: var(--faint); }
+.sb-coin.up, .crypto-chg.up { color: var(--green-text); }
+.sb-coin.down, .crypto-chg.down { color: var(--red-text); }
+.crypto-list { margin: 12px 0 8px; border: 1px solid var(--line); border-radius: 6px; }
+.crypto-row { display: grid; grid-template-columns: 110px 1fr 80px auto; gap: 10px; align-items: center; padding: 5px 10px; border-top: 1px solid var(--line); }
+.crypto-row:first-child { border-top: 0; }
+.crypto-sym { font-weight: 600; font-family: var(--mono); }
+.crypto-sym input { width: 100%; }
+.crypto-price, .crypto-chg { font-family: var(--mono); text-align: right; }
+.crypto-actions { display: flex; gap: 2px; }
+.crypto-list .empty { padding: 14px; }
+.crypto-add { display: flex; gap: 8px; margin-bottom: 8px; }
+.crypto-add input { flex: 1; }
 
 /* ---------- palette / menu ---------- */
 .palette {

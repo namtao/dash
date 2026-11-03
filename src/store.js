@@ -48,6 +48,10 @@ const DEFAULT_WORKSPACE = {
 // AI chạy local (OpenAI-compatible như Cline: Ollama, LM Studio, llama.cpp…). Khoá API chỉ nằm ở server.
 const DEFAULT_AI = { baseUrl: "http://localhost:11434/v1", model: "", apiKey: "" };
 const SNIPPET_OS = ["any", "linux", "macos", "windows"];
+// Theo dõi giá coin ở thanh trạng thái (sàn, thị trường spot / futures, danh sách mã coin)
+const CRYPTO_EXCHANGES = ["binance", "okx", "bitget"];
+const CRYPTO_MARKETS = ["spot", "futures"];
+const DEFAULT_CRYPTO = { exchange: "binance", market: "futures", refreshSec: 15, coins: ["BTC", "ETH"] };
 // Thư mục / dự án trên máy SSH: ssh://<id hồ sơ>/đường/dẫn/tuyệt/đối
 const REMOTE_RE = /^ssh:\/\/([^/]+)(\/.*)$/;
 const CURSOR_STYLES = ["bar", "block", "underline"];
@@ -213,6 +217,23 @@ function normalizeAi(raw = {}, previous = {}) {
   return out;
 }
 
+function normalizeCrypto(raw) {
+  const c = raw && typeof raw === "object" ? raw : DEFAULT_CRYPTO;
+  const coins = [];
+  for (const x of Array.isArray(c.coins) ? c.coins : []) {
+    const sym = String(x || "").trim().toUpperCase();
+    if (!/^[A-Z0-9]{1,15}$/.test(sym)) throw new Error(`"${sym}" is not a valid coin symbol`);
+    if (!coins.includes(sym)) coins.push(sym);
+  }
+  const sec = Number(c.refreshSec);
+  return {
+    exchange: CRYPTO_EXCHANGES.includes(c.exchange) ? c.exchange : DEFAULT_CRYPTO.exchange,
+    market: CRYPTO_MARKETS.includes(c.market) ? c.market : DEFAULT_CRYPTO.market,
+    refreshSec: Number.isFinite(sec) ? Math.min(3600, Math.max(5, Math.round(sec))) : DEFAULT_CRYPTO.refreshSec,
+    coins,
+  };
+}
+
 // Câu lệnh hay dùng (như quick commands của WezTerm)
 function normalizeSnippets(list) {
   const ids = new Set();
@@ -271,6 +292,7 @@ function normalizeConfig(raw, previous = cache) {
     databases: normalizeDatabases(raw.databases, previous?.databases),
     ai: normalizeAi(raw.ai, previous?.ai),
     snippets: normalizeSnippets(raw.snippets),
+    crypto: normalizeCrypto(raw.crypto),
     projects,
   };
 }

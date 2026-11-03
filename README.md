@@ -53,7 +53,7 @@ Install Dash as an app from the browser menu (**Install** / **Open as window**) 
 | Editor tabs | Overview / project details, files, diffs, SQL queries, Settings. Tabs reopen after a reload, can be reordered by dragging and closed with a middle click. Unsaved tabs show ● and ask before closing. |
 | Panel (bottom) | Terminal, Problems, History, Output (backup/restore logs). Hidden when the page opens; it appears when you open a terminal. |
 | Claude (right) | Claude Code conversations |
-| Status bar | Git branch; problems in the open file; Claude 5h / week usage; read-only flag and size of the open file; number of terminals |
+| Status bar | Git branch; problems in the open file; coin prices; Claude 5h / week usage; read-only flag and size of the open file; number of terminals |
 
 The **current folder** is shared within a window: Explorer, Source Control, History, new terminals and new Claude conversations all use it.
 
@@ -113,6 +113,11 @@ The **current folder** is shared within a window: Explorer, Source Control, Hist
 - In the input: @ mentions files, / lists commands, pasted images are attached, ↑ recalls earlier prompts, and Esc stops Claude. Dash can tell Claude which file is open in the editor.
 - **Updates**: with "Update Claude Code automatically" on (the default), Dash runs `claude update` a few minutes after it starts and then once a day. Settings → Claude Code updates shows the version and has an **Update now** button.
 - **Usage limits**: the status bar and the top of the Claude panel show 5-hour and weekly utilization with their reset times. Dash reads them from the same endpoint as Claude Code's `/usage` command, using the OAuth token in `~/.claude/.credentials.json`. Reading them sends no prompt and uses no tokens. The server caches the result for `usageRefreshSec` seconds (default 60), and live values from running conversations update it in between. The token never reaches the browser.
+
+### Coin prices
+- The status bar shows the price in USDT and the change since 00:00 UTC for the coins you track, next to the Claude usage limits (green when up, red when down; hover for the list and the update time).
+- Click it to add, rename or remove coins, and to pick the exchange (Binance, OKX, Bitget), the market (USDT perpetual futures or spot) and the refresh interval (default 15 seconds). A symbol the exchange does not list shows "Not listed".
+- The server fetches the exchanges' public APIs (no API key) and caches the result, so many project tabs share one request. Saved in `projects.json` under `crypto`.
 
 ### Local AI
 - Chat with a model on your machine in the Local AI view, right below Claude in the activity bar (Ctrl+Alt+I).
@@ -195,6 +200,7 @@ You normally don't edit this file by hand, because Dash writes everything you ch
     "keybindings": { "terminal.new": "Alt+T" }   // only the shortcuts you changed
   },
   "ai": { "baseUrl": "http://localhost:11434/v1", "model": "qwen2.5-coder:7b", "apiKey": "" },
+  "crypto": { "exchange": "binance", "market": "futures", "refreshSec": 15, "coins": ["BTC", "ETH"] },
   "snippets": [{ "id": "disk", "name": "Disk usage", "group": "System", "os": "linux", "description": "", "command": "df -h" }],
   "ssh": [{ "id": "web", "label": "Web server", "host": "203.0.113.10", "port": 22, "user": "deploy", "forwards": [{ "local": 15432, "host": "localhost", "remote": 5432 }] }],
   "databases": [{ "id": "local", "name": "local", "type": "postgres", "host": "localhost", "port": 5432, "user": "postgres", "password": "…", "database": "app" }],
@@ -238,6 +244,7 @@ src/local-ai.js           OpenAI-compatible local AI proxy (chat stream, commit 
 src/code-tools.js         external formatters and linters
 src/claude-update.js      `claude update` on a schedule
 src/claude.js             Claude Agent SDK sessions and usage limits
+src/crypto-prices.js      coin prices for the status bar (Binance, OKX, Bitget public APIs)
 src/db/                   drivers (postgres, mysql, mssql, sqlite), query/save, backup/restore
 src/python-env.js, src/package-manager.js, src/project-detect.js, src/system-tools.js
 shell-integration/        zsh/bash hooks loaded into Dash terminals

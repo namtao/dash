@@ -361,6 +361,12 @@
     const input = $(".cl-input", root);
     let text = input.value.trim();
     if (!text && !pending.images.length) return;
+    if (text === "/clear" && !pending.images.length) {
+      input.value = "";
+      autoGrow(input);
+      store.set("claudeDraft", "");
+      return clearSession();
+    }
     let s = sessions.get(current);
     if (!s || s.info.closed) s = await newSession();
     if (!s) return;
@@ -579,13 +585,23 @@
     if (s) await api("POST", `/api/claude/sessions/${s.id}/interrupt`).catch(() => {});
   }
 
-  async function closeSession(id) {
+  async function closeSession(id, ask = true) {
     const s = sessions.get(id);
-    if (s?.info.busy && !(await confirmDialog("Claude is still working in this conversation. Close it?", { title: "Close conversation", ok: "Close", danger: true }))) return;
+    if (ask && s?.info.busy && !(await confirmDialog("Claude is still working in this conversation. Close it?", { title: "Close conversation", ok: "Close", danger: true }))) return false;
     await api("DELETE", `/api/claude/sessions/${id}`).catch(() => {});
     sessions.delete(id);
     if (current === id) showSession([...sessions.keys()][0] || null);
     else paintHeader();
+    return true;
+  }
+
+  // /clear như Claude Code CLI: bỏ cuộc trò chuyện hiện tại, mở cuộc mới cùng thư mục, model và chế độ quyền.
+  // Cuộc cũ vẫn tiếp tục được qua "Resume a past conversation".
+  async function clearSession() {
+    const old = sessions.get(current);
+    if (old?.info.busy && !(await confirmDialog("Claude is still working in this conversation. Clear it and start a new one?", { title: "Clear conversation", ok: "Clear", danger: true }))) return;
+    const s = await newSession({ cwd: old?.info.cwd });
+    if (s && old) await closeSession(old.id, false);
   }
 
   function openToolDiff(toolId) {

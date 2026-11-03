@@ -12,11 +12,18 @@
   const join = (a, b) => `${a.replace(/\/+$/, "")}/${b}`;
   const STATUS_CLS = { M: "mod", A: "add", D: "del", R: "ren", U: "unt", C: "add", T: "mod" };
 
+  let logSig = "";
   async function refresh() {
     try {
       st = await api("GET", `/api/git/status?dir=${encodeURIComponent(W.folder)}`);
     } catch (e) {
       st = { error: e.message };
+    }
+    // Commit / push / pull từ nơi khác (terminal ngoài, Claude…) đổi HEAD hoặc ahead/behind: nạp lại lịch sử
+    const sig = st.error ? "" : [st.root, st.head, st.branch, st.upstream, st.ahead, st.behind].join("|");
+    if (sig !== logSig) {
+      logSig = sig;
+      log = null;
     }
     paintStatus();
     if (root) paint();
