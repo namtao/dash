@@ -47,10 +47,10 @@
   color-scheme: light;
 }
 
-/* One Dark Pro Darker (giống VS Code đang dùng) */
+/* One Dark Pro (giống VS Code đang dùng) */
 html[data-theme="dark"] {
-  --bg: #23272e;
-  --panel: #1e2227;
+  --bg: #282c34;
+  --panel: #21252b;
   --panel-2: #2c313a;
   --line: #3a3f4b;
   --line-2: #3e4451;
@@ -62,9 +62,9 @@ html[data-theme="dark"] {
   --faint: #7f848e;
   --hover: #2c313a;
   --chip-bg: #2c313a;
-  --sidebar: #1e2227;
-  --topbar: #1e2227;
-  --log-bg: #1e2227;
+  --sidebar: #21252b;
+  --topbar: #21252b;
+  --log-bg: #21252b;
   --selected: rgba(82, 139, 255, 0.1);
   --row-hover: #2c313a;
   --dot: #5c6370;

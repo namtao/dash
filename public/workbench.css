@@ -22,20 +22,20 @@
   --ansi-8: #696c77; --ansi-9: #e45649; --ansi-10: #50a14f; --ansi-11: #c18401; --ansi-12: #4078f2; --ansi-13: #a626a4; --ansi-14: #0184bc; --ansi-15: #383a42;
 }
 html[data-theme="dark"] {
-  --wb-title: #23272e;
-  --wb-activity: #23272e;
-  --wb-side: #1e2227;
-  --wb-editor: #23272e;
-  --wb-panel: #23272e;
-  --wb-status: #1e2227;
-  --wb-tab: #1e2227;
-  --wb-tab-active: #23272e;
+  --wb-title: #282c34;
+  --wb-activity: #282c34;
+  --wb-side: #21252b;
+  --wb-editor: #282c34;
+  --wb-panel: #282c34;
+  --wb-status: #21252b;
+  --wb-tab: #21252b;
+  --wb-tab-active: #282c34;
   --wb-border: #181a1f;
   --wb-hover: #2c313a;
   --wb-sel: #323842;
   --wb-input: #1d1f23;
-  --term-bg: #23272e;
-  --log-bg: #23272e;
+  --term-bg: #282c34;
+  --log-bg: #282c34;
   --sh-cmd: #98c379;
   --sh-str: #e5c07b;
   --sh-flag: #56b6c2;
@@ -291,6 +291,7 @@ body.resizing iframe, body.resizing .xterm { pointer-events: none; }
 .scm-row { display: flex; align-items: center; gap: 6px; height: 22px; padding: 0 8px 0 22px; cursor: pointer; white-space: nowrap; }
 .scm-row.sub { padding-left: 34px; }
 .scm-row:hover { background: var(--wb-hover); }
+.scm-row.sel { background: var(--wb-sel); }
 .scm-row .fname { color: var(--text); }
 .scm-row .fdir { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: 11.5px; color: var(--faint); }
 .scm-row .scm-actions { display: none; }

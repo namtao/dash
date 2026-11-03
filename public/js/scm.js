@@ -83,6 +83,25 @@
     const btn = $(".scm-commit-btn", root);
     btn.disabled = busy;
     btn.textContent = st.staged.length ? `✓ Commit (${st.staged.length})` : "✓ Commit all";
+    markActive();
+  }
+
+  // Sáng dòng của file mà tab diff đang mở so sánh
+  function markActive(scroll = false) {
+    if (!root) return;
+    const t = W.active?.persist?.kind === "diff" ? W.active.persist.data : null;
+    let hit = null;
+    for (const r of root.querySelectorAll(".scm-row")) {
+      const on = Boolean(
+        t &&
+          st?.root === t.repo &&
+          r.dataset.path === t.rel &&
+          (t.mode === "commit" ? r.dataset.commit === t.commit : !r.dataset.commit && (r.dataset.kind === "staged") === (t.mode === "staged"))
+      );
+      r.classList.toggle("sel", on);
+      if (on) hit = r;
+    }
+    if (scroll) hit?.scrollIntoView({ block: "nearest" });
   }
 
   function logHtml() {
@@ -360,9 +379,17 @@
         s.editor.setModel({ original: s.orig, modified: s.mod });
         s.mod.onDidChangeContent(() => W.markDirty());
         s.editor.onDidUpdateDiff?.(() => {
-          const n = s.editor.getLineChanges()?.length || 0;
-          tab.badge = n ? String(n) : "";
+          const changes = s.editor.getLineChanges() || [];
+          tab.badge = changes.length ? String(changes.length) : "";
           W.paintTabs();
+          // Lần đầu có kết quả diff: nhảy tới đoạn thay đổi đầu tiên (reload sau đó không kéo con trỏ đi)
+          if (!s.jumped && changes.length) {
+            s.jumped = true;
+            const line = Math.max(1, changes[0].modifiedStartLineNumber);
+            const ed = s.editor.getModifiedEditor();
+            ed.setPosition({ lineNumber: line, column: 1 });
+            ed.revealLineInCenter(line);
+          }
         });
       } else {
         s.orig.setValue(d.original);
@@ -445,6 +472,7 @@
   W.onMsg("term.history", (m) => /^\s*(git|gh)\b/.test(m.entry?.cmd || "") && (refresh(), refreshDiffTabs(), (log = null)));
   W.on("ready", refresh);
   W.on("icons", () => root && paint());
+  W.on("tab", () => markActive(true));
   window.addEventListener("focus", () => refresh());
   setInterval(() => document.visibilityState === "visible" && refresh(), 15000);
 })();

@@ -312,6 +312,7 @@ const W = (() => {
         W.active = null;
         paintTabs();
         showWelcome();
+        W.emit("tab", null);
       }
     } else paintTabs();
     persistTabs();
@@ -677,7 +678,7 @@ const W = (() => {
         { token: "function", foreground: c.blue },
       ],
       colors: {
-        "editor.background": "#23272e",
+        "editor.background": "#282c34",
         "editor.foreground": "#abb2bf",
         "editorLineNumber.foreground": "#495162",
         "editorLineNumber.activeForeground": "#abb2bf",
@@ -686,17 +687,17 @@ const W = (() => {
         "editor.lineHighlightBackground": "#2c313c",
         "editorIndentGuide.background1": "#3b4048",
         "editorWhitespace.foreground": "#3b4048",
-        "editorGutter.background": "#23272e",
-        "editorWidget.background": "#1e2227",
-        "editorSuggestWidget.background": "#1e2227",
+        "editorGutter.background": "#282c34",
+        "editorWidget.background": "#21252b",
+        "editorSuggestWidget.background": "#21252b",
         "editorSuggestWidget.selectedBackground": "#2c313a",
-        "editorHoverWidget.background": "#1e2227",
+        "editorHoverWidget.background": "#21252b",
         "diffEditor.insertedTextBackground": "#98c37926",
         "diffEditor.removedTextBackground": "#e06c7526",
         "diffEditor.insertedLineBackground": "#98c3791a",
         "diffEditor.removedLineBackground": "#e06c751a",
         "scrollbarSlider.background": "#4e566680",
-        "minimap.background": "#23272e",
+        "minimap.background": "#282c34",
         "editor.selectionBackground": "#67769660",
         // menu chuột phải, gợi ý, hover: nền sáng hơn editor + viền + bóng để nổi lên trên
         "menu.background": "#2c313a",
