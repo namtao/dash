@@ -1,9 +1,9 @@
 // Quản lý tiến trình: mỗi lệnh chạy trong process group riêng, log ghi ra file.
 // Lệnh "chạy ngầm" vẫn sống khi tắt dashboard và được nhận lại (adopt) ở lần chạy sau;
-// lệnh thường bị tắt cùng dashboard. PID được đối chiếu với starttime trong /proc để tránh PID bị tái sử dụng.
+// lệnh thường bị tắt cùng dashboard. PID được đối chiếu với thời điểm khởi động của tiến trình để tránh PID bị tái sử dụng.
 const fs = require("fs");
 const path = require("path");
-const { spawn, execFile } = require("child_process");
+const { spawn, execFile, execFileSync } = require("child_process");
 const store = require("./store");
 const os = require("os");
 const pyenv = require("./python-env");
@@ -19,8 +19,12 @@ const runs = new Map(); // key -> run
 
 const keyOf = (projectId, cmdId) => `${projectId}/${cmdId}`;
 
+const LINUX = process.platform === "linux";
+
+// Linux đọc /proc; macOS (không có /proc) hỏi `ps`. Cố định locale và múi giờ để chuỗi giờ so được giữa các lần chạy Dash.
 function procStartTime(pid) {
   try {
+    if (!LINUX) return execFileSync("ps", ["-o", "lstart=", "-p", String(pid)], { encoding: "utf8", timeout: 3000, env: { ...process.env, LC_ALL: "C", TZ: "UTC" } }).trim() || null;
     const stat = fs.readFileSync(`/proc/${pid}/stat`, "utf8");
     return stat.slice(stat.lastIndexOf(")") + 2).split(" ")[19];
   } catch {
@@ -29,7 +33,7 @@ function procStartTime(pid) {
 }
 
 function isAlive(run) {
-  return Boolean(run?.pid && run.exitedAt == null && procStartTime(run.pid) === run.startTime);
+  return Boolean(run?.pid && run.exitedAt == null && run.startTime != null && procStartTime(run.pid) === run.startTime);
 }
 
 function saveState() {
@@ -79,10 +83,13 @@ function stamp() {
 }
 
 // Lệnh nhanh chạy trong PTY (qua `script`) để chương trình thấy terminal và tự in màu như trong shell.
-const COLOR_ALIASES = "alias ls='ls --color=auto' grep='grep --color=auto' diff='diff --color=auto' ip='ip -color=auto'";
+// `script` của util-linux (Linux) và của BSD (macOS) nhận tham số khác nhau; ls của macOS bật màu bằng -G.
+const COLOR_ALIASES = LINUX ? "alias ls='ls --color=auto' grep='grep --color=auto' diff='diff --color=auto' ip='ip -color=auto'" : "alias ls='ls -G' grep='grep --color=auto'";
 function ptyWrap(cmd) {
   const inner = `stty cols 160 rows 50 2>/dev/null\n${COLOR_ALIASES}\n${cmd}`;
-  return ["script", ["-qefc", `bash --noprofile --norc -O expand_aliases -c ${shellQuote(inner)}`, "/dev/null"]];
+  const bash = ["bash", "--noprofile", "--norc", "-O", "expand_aliases", "-c", inner];
+  if (!LINUX) return ["script", ["-q", "/dev/null", ...bash]];
+  return ["script", ["-qefc", bash.slice(0, -1).join(" ") + " " + shellQuote(inner), "/dev/null"]];
 }
 const shellQuote = (s) => `'${String(s).replace(/'/g, `'\\''`)}'`;
 

@@ -543,7 +543,8 @@ const listenHost = process.env.HOST || host;
 runner.loadState();
 server.on("error", (err) => {
   if (err.code === "EADDRINUSE") {
-    console.error(`Port ${listenPort} is in use. Check: ss -ltnp | grep :${listenPort}  (Dash may already be running)`);
+    const check = process.platform === "linux" ? `ss -ltnp | grep :${listenPort}` : `lsof -nP -iTCP:${listenPort} -sTCP:LISTEN`;
+    console.error(`Port ${listenPort} is in use. Check: ${check}  (Dash may already be running)`);
     process.exit(1);
   }
   throw err;

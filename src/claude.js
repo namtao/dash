@@ -2,11 +2,13 @@
 // của người dùng), xin quyền chạy công cụ qua giao diện, và đọc hạn mức 5 giờ / tuần.
 //
 // Hạn mức đọc từ endpoint mà lệnh /usage của Claude Code dùng (api/oauth/usage) bằng OAuth token trong
-// ~/.claude/.credentials.json: chỉ là một request HTTP, không gửi prompt nên không tốn token.
+// ~/.claude/.credentials.json (macOS: Keychain, mục "Claude Code-credentials"): chỉ là một request HTTP,
+// không gửi prompt nên không tốn token.
 // Token không bao giờ được gửi xuống trình duyệt hay ghi ra log.
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
+const { execFileSync } = require("child_process");
 const store = require("./store");
 
 const CREDENTIALS = path.join(process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), ".claude"), ".credentials.json");
@@ -16,7 +18,7 @@ let sdk = null;
 const loadSdk = async () => (sdk ||= await import("@anthropic-ai/claude-agent-sdk"));
 
 function claudeBinary() {
-  for (const p of [path.join(os.homedir(), ".local/bin/claude"), "/usr/local/bin/claude", "/usr/bin/claude"]) {
+  for (const p of [path.join(os.homedir(), ".local/bin/claude"), "/opt/homebrew/bin/claude", "/usr/local/bin/claude", "/usr/bin/claude"]) {
     if (fs.existsSync(p)) return p;
   }
   return undefined; // SDK tự dùng bản đi kèm
@@ -25,8 +27,18 @@ function claudeBinary() {
 // ---------- Hạn mức ----------
 const usageState = { data: null, fetchedAt: 0, error: "", nextAllowedAt: 0, inflight: null, live: {} };
 
+// Linux lưu token trong file; Claude Code trên macOS lưu trong Keychain (file chỉ có khi Keychain không dùng được).
+function readCredentials() {
+  try {
+    return fs.readFileSync(CREDENTIALS, "utf8");
+  } catch (e) {
+    if (process.platform !== "darwin") throw e;
+    return execFileSync("security", ["find-generic-password", "-s", "Claude Code-credentials", "-w"], { encoding: "utf8", timeout: 5000, stdio: ["ignore", "pipe", "ignore"] });
+  }
+}
+
 function readToken() {
-  const raw = JSON.parse(fs.readFileSync(CREDENTIALS, "utf8"));
+  const raw = JSON.parse(readCredentials());
   const oauth = raw.claudeAiOauth || {};
   return { token: oauth.accessToken || "", expiresAt: oauth.expiresAt || 0, plan: oauth.subscriptionType || "" };
 }

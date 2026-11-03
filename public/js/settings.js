@@ -240,7 +240,8 @@
       if (!r) return;
       await W.reloadConfig();
       W.paintActivity();
-      toast(`Imported: ${Object.entries(r).map(([k, v]) => `${v >= 0 ? "+" : ""}${v} ${k}`).join(" · ")}`, "ok", 5000);
+      const moved = r.home ? `\nPaths moved from ${r.home.from} to ${r.home.to}` : "";
+      toast(`Imported: ${Object.entries(r.added).map(([k, v]) => `${v >= 0 ? "+" : ""}${v} ${k}`).join(" · ")}${moved}`, "ok", 8000);
     };
     input.click();
   }

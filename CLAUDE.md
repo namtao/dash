@@ -26,6 +26,9 @@ Dash is a local workspace (terminals, editor, git, Claude Code, databases, proje
 - **No runtime downloads of tools.** Formatters / linters run only if installed on the machine (ruff,
   shellcheck, yamllint…); otherwise use built-in fallbacks (`src/python-check.py`, `bash -n`, Monaco).
   Do not fetch them with `uvx` / `npx` from inside Dash.
+- **Linux and macOS.** No `/proc`, `ss`, `xdg-open`, `systemctl` or GNU-only flags without a branch on
+  `process.platform` (macOS: `ps`, `lsof`, `open`, launchd). Local paths come from `os.homedir()`, never a
+  hard-coded `/home/...`.
 - Run `npm run check` (syntax check of all JS) before finishing any change.
 
 ## Architecture notes

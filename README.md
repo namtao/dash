@@ -22,9 +22,9 @@ node server.js                     # http://127.0.0.1:8899
 PORT=9000 node server.js
 ```
 
-Dash requires Node ≥ 22.5 and Linux, because it uses `/proc`, `ss`, `ps`, `script` and `node:sqlite`. `npm install` builds `node-pty`, so `gcc`, `make` and `python3` must be installed. On first run Dash creates an empty `projects.json`. Add projects with **＋** or **Scan** in the Projects view.
+Dash runs on Linux and macOS and requires Node ≥ 22.5 (for `node:sqlite`). `npm install` builds `node-pty`: on Linux install `gcc`, `make` and `python3`; on macOS run `xcode-select --install` once. Windows is not supported (Dash relies on POSIX process groups, `bash` and `ssh` ControlMaster). On first run Dash creates an empty `projects.json`. Add projects with **＋** or **Scan** in the Projects view.
 
-### Run with the system (systemd)
+### Run with the system (systemd on Linux, launchd on macOS)
 
 ```bash
 npm run service:install            # writes ~/.config/systemd/user/dash.service, enables and starts it
@@ -34,11 +34,13 @@ systemctl --user restart dash
 npm run service:uninstall
 ```
 
-The service starts when you log in and restarts itself if it crashes. It uses the `PATH` of the shell where you ran the install script, so project commands can find conda, uv, npm and other tools. To start Dash at boot without logging in, run `loginctl enable-linger $USER` once.
+On macOS the same script writes `~/Library/LaunchAgents/local.dash.plist` and loads it with `launchctl`. The server log goes to `logs/dash-service.log`; restart with `launchctl kickstart -k gui/$(id -u)/local.dash`.
+
+The service starts when you log in and restarts itself if it crashes. It uses the `PATH` of the shell where you ran the install script, so project commands can find conda, uv, npm and other tools. On Linux, to start Dash at boot without logging in, run `loginctl enable-linger $USER` once.
 
 If Dash is already running elsewhere, for example in tmux, stop that copy first. Otherwise the port is taken and the install script only prints the command to start the service.
 
-Stopping Dash stops foreground commands and closes all terminals. **Background** commands keep running and are adopted again the next time Dash starts; their stats line shows `adopted`. The service uses `KillMode=process`, so a restart does not kill them.
+Stopping Dash stops foreground commands and closes all terminals. **Background** commands keep running and are adopted again the next time Dash starts; their stats line shows `adopted`. The service uses `KillMode=process` (systemd) or `AbandonProcessGroup` (launchd), so a restart does not kill them.
 
 Install Dash as an app from the browser menu (**Install** / **Open as window**) to get its own window and free a few shortcuts that browser tabs reserve.
 
@@ -147,7 +149,7 @@ The **current folder** is shared within a window: Explorer, Source Control, Hist
 ### Settings and shortcuts
 Settings is an editor tab (Ctrl+,). It covers the shell, font, cursor, scrollback, copy/paste behavior, editor font, tab size, word wrap and auto save, the Claude default model, permission mode, effort, usage refresh and automatic updates, the local AI server, and the database row limit and backup folder. **Projects & server** (projects folder, Python for venvs, host, port) and **Edit JSON** are linked there.
 
-**Export** downloads every setting as one JSON file (projects, commands, SSH profiles and forwards, database connections, saved commands, workspace options, shortcuts and local AI settings) with passwords and API keys left out. **Import** reads such a file and either merges it (adds only the items you do not have) or replaces everything; passwords and the API key you already saved are kept. Nothing is uploaded anywhere.
+**Export** downloads every setting as one JSON file (projects, commands, SSH profiles and forwards, database connections, saved commands, workspace options, shortcuts and local AI settings) with passwords and API keys left out. **Import** reads such a file and either merges it (adds only the items you do not have) or replaces everything; passwords and the API key you already saved are kept. Nothing is uploaded anywhere. When the file comes from a machine with another home folder (for example `/home/me` on Linux and `/Users/me` on macOS), local paths are moved to this machine's home folder; paths on SSH hosts stay as they are. A shell that does not exist on the new machine falls back to the default (`zsh`, then `$SHELL`, then `bash`). Database passwords, the AI key and Python environments must be set up again on the new machine.
 
 In **Keyboard shortcuts** (Ctrl+Shift+H), click a shortcut and press new keys. Several shortcuts per command are allowed, and conflicts are reported. The defaults below follow WezTerm where possible:
 
@@ -240,7 +242,7 @@ src/claude.js             Claude Agent SDK sessions and usage limits
 src/db/                   drivers (postgres, mysql, mssql, sqlite), query/save, backup/restore
 src/python-env.js, src/package-manager.js, src/project-detect.js, src/system-tools.js
 shell-integration/        zsh/bash hooks loaded into Dash terminals
-scripts/install-service.sh  systemd user service
+scripts/install-service.sh  systemd user service (Linux) / LaunchAgent (macOS)
 scripts/sync-icons.js     copy Atom Material Icons from the VS Code extension
 CLAUDE.md                 rules and known pitfalls for working on this repo
 public/                   UI: shell.html + js/shell.js (project tabs), index.html workbench: app.js (dashboard), js/ (modules), style.css, workbench.css

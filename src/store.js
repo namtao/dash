@@ -1,5 +1,6 @@
 // Đọc/ghi cấu hình projects.json (ghi nguyên tử) và chuẩn hoá dữ liệu dự án.
 const fs = require("fs");
+const os = require("os");
 const path = require("path");
 
 const ROOT = path.resolve(__dirname, "..");
@@ -14,9 +15,13 @@ const DEFAULT_SETTINGS = {
 
 const ENV_TYPES = ["none", "conda", "venv", "uv"];
 
+// Shell mặc định: zsh nếu có (macOS: /bin/zsh, Linux thường /usr/bin/zsh), rồi tới $SHELL, cuối cùng bash.
+const isFile = (f) => Boolean(f) && fs.existsSync(f);
+const DEFAULT_SHELL = [process.env.SHELL_FOR_DASH, "/bin/zsh", "/usr/bin/zsh", process.env.SHELL].find(isFile) || "/bin/bash";
+
 // Tuỳ chọn của workspace (terminal, editor, Claude, phím tắt). Kiểu dữ liệu lấy theo giá trị mặc định.
 const DEFAULT_WORKSPACE = {
-  shell: process.env.SHELL_FOR_DASH || (fs.existsSync("/usr/bin/zsh") ? "/usr/bin/zsh" : "/bin/bash"),
+  shell: DEFAULT_SHELL,
   fontFamily: '"JetBrainsMono Nerd Font", "JetBrains Mono", monospace',
   fontSize: 13,
   lineHeight: 1.15,
@@ -33,7 +38,7 @@ const DEFAULT_WORKSPACE = {
   claudePermissionMode: "default",
   claudeEffort: "",
   usageRefreshSec: 60,
-  backupDir: path.join(process.env.HOME || "/tmp", "Backups", "dash"),
+  backupDir: path.join(os.homedir(), "Backups", "dash"),
   sqlRowLimit: 500,
   autoSave: true,
   autoSaveDelay: 1000,
@@ -162,7 +167,8 @@ function normalizeWorkspace(raw = {}) {
   out.usageRefreshSec = Math.max(30, out.usageRefreshSec);
   out.sqlRowLimit = Math.min(100000, Math.max(10, Math.round(out.sqlRowLimit)));
   out.autoSaveDelay = Math.min(60000, Math.max(200, Math.round(out.autoSaveDelay)));
-  if (!out.shell) out.shell = DEFAULT_WORKSPACE.shell;
+  // Shell không có trên máy này (vd. cấu hình chép từ Linux sang macOS) thì dùng shell mặc định
+  if (!isFile(out.shell)) out.shell = DEFAULT_WORKSPACE.shell;
   for (const [k, v] of Object.entries(out.keybindings)) if (typeof v !== "string") delete out.keybindings[k];
   return out;
 }
@@ -277,12 +283,14 @@ function publicConfig() {
 }
 
 // Xuất toàn bộ cấu hình ra JSON để sao lưu / chuyển máy: bỏ mật khẩu, khoá API.
+// Kèm thư mục home để máy nhập đổi được đường dẫn (/home/a -> /Users/a).
 function exportConfig() {
   const { ai, databases, ...c } = publicConfig();
   const { hasApiKey, ...aiPublic } = ai;
   return {
     app: "dash",
     exportedAt: new Date().toISOString(),
+    home: os.homedir(),
     ...c,
     ai: aiPublic,
     databases: databases.map(({ hasPassword, ...d }) => d),
@@ -315,10 +323,45 @@ function replaceAll(raw) {
   return config;
 }
 
+// Thư mục home của máy đã xuất: lấy từ file, file cũ thì đoán từ đường dẫn local đầu tiên dạng /home/x hoặc /Users/x.
+function exportedHome(data) {
+  if (typeof data.home === "string" && path.isAbsolute(data.home)) return data.home.replace(/\/+$/, "");
+  const paths = [data.settings?.projectsRoot, ...data.projects.map((p) => p?.path)];
+  for (const p of paths) {
+    const m = typeof p === "string" && p.match(/^\/(?:home|Users)\/[^/]+/);
+    if (m) return m[0];
+  }
+  return "";
+}
+
+// Đổi home cũ sang home của máy này trong mọi chuỗi phía local. Bỏ qua thứ chạy trên máy SSH:
+// dự án ssh://, thư mục từ xa của hồ sơ SSH và câu lệnh đã lưu (có thể gõ trong terminal SSH).
+function remapHome(data, from, to) {
+  const re = new RegExp(`${from.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\w.-])`, "g");
+  const deep = (v) => {
+    if (typeof v === "string") return v.startsWith("ssh://") ? v : v.replace(re, to);
+    if (Array.isArray(v)) return v.map(deep);
+    if (v && typeof v === "object") return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, deep(x)]));
+    return v;
+  };
+  return {
+    ...data,
+    settings: deep(data.settings),
+    workspace: deep(data.workspace),
+    databases: deep(data.databases),
+    ssh: Array.isArray(data.ssh) ? data.ssh.map((h) => (h && typeof h === "object" ? { ...deep(h), remoteDir: h.remoteDir } : h)) : data.ssh,
+    projects: data.projects.map((p) => (typeof p?.path === "string" && p.path.startsWith("ssh://") ? p : deep(p))),
+  };
+}
+
 // Nhập file đã xuất. "merge": giữ cấu hình hiện tại, chỉ thêm dự án / SSH / kết nối / câu lệnh chưa có (theo id).
 // "replace": thay toàn bộ. Mật khẩu DB và khoá API không có trong file xuất nên được giữ nguyên theo id.
+// File từ máy khác (home khác, vd. Linux -> macOS) được đổi đường dẫn home trước khi nhập.
 function importConfig(data, mode = "merge") {
   if (!data || typeof data !== "object" || !Array.isArray(data.projects)) throw Object.assign(new Error("This is not a Dash configuration file"), { status: 400 });
+  const from = exportedHome(data);
+  const home = os.homedir();
+  if (from && from !== home) data = remapHome(data, from, home);
   const cur = load();
   const LISTS = ["projects", "ssh", "databases", "snippets"];
   let next;
@@ -333,7 +376,7 @@ function importConfig(data, mode = "merge") {
   }
   const config = normalizeConfig(next);
   save(config);
-  return Object.fromEntries(LISTS.map((k) => [k, config[k].length - cur[k].length]));
+  return { added: Object.fromEntries(LISTS.map((k) => [k, config[k].length - cur[k].length])), home: from && from !== home ? { from, to: home } : null };
 }
 
 function getProject(id) {
