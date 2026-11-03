@@ -608,7 +608,7 @@ textarea.cell-input { min-height: 80px; position: relative; z-index: 4; }
 .ro-btn.on { color: var(--amber-text) !important; background: var(--amber-soft) !important; }
 .code-split { flex: 1; min-height: 0; display: flex; }
 .code-split .code-editor { flex: 1; min-width: 0; }
-.md-preview { flex: 1; min-width: 0; overflow: auto; padding: 16px 24px 60px; border-left: 1px solid var(--wb-border); background: var(--wb-editor); }
+.md-preview { flex: 1; min-width: 0; overflow: auto; overflow-anchor: none; padding: 16px 24px 60px; border-left: 1px solid var(--wb-border); background: var(--wb-editor); }
 .md-body { line-height: 1.6; font-size: 14px; color: var(--text); overflow-wrap: anywhere; }
 .md-body h1, .md-body h2 { border-bottom: 1px solid var(--line); padding-bottom: 4px; margin: 18px 0 10px; }
 .md-body h1 { font-size: 24px; } .md-body h2 { font-size: 19px; } .md-body h3 { font-size: 16px; margin: 14px 0 6px; }

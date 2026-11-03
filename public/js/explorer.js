@@ -213,10 +213,31 @@
     return DOMPurify.sanitize(html, { USE_PROFILES: { html: true } });
   }
 
+  // Markdown -> HTML; mỗi khối cấp cao nhất mang data-line = dòng nguồn (tính từ 1) để đồng bộ cuộn với editor
+  function markdownHtml(text) {
+    const lines = (a, b) => {
+      let n = 0;
+      for (let i = a; i < b; i++) if (text.charCodeAt(i) === 10) n++;
+      return n;
+    };
+    let pos = 0;
+    let line = 1;
+    return marked
+      .lexer(text, { gfm: true })
+      .map((t) => {
+        const at = t.raw ? text.indexOf(t.raw, pos) : -1;
+        if (at >= 0) (line += lines(pos, at)), (pos = at);
+        const start = line;
+        if (at >= 0) (line += lines(at, at + t.raw.length)), (pos = at + t.raw.length);
+        return marked.parser([t], { gfm: true }).replace(/^\s*<([a-z][\w-]*)/i, `<$1 data-line="${start}"`);
+      })
+      .join("");
+  }
+
   // Markdown -> HTML an toàn; ảnh / link tương đối tính theo thư mục của file
   async function renderMarkdown(el, text, file) {
     await W.loadScript("/vendor/marked/marked.umd.js");
-    el.innerHTML = await sanitize(marked.parse(text, { gfm: true }));
+    el.innerHTML = await sanitize(markdownHtml(text));
     const base = dirOf(file);
     const resolve = (href) => (href.startsWith("/") && !W.isRemote(file) ? href : `${base}/${href}`.replace(/\/\.\//g, "/"));
     for (const img of el.querySelectorAll("img[src]")) {
@@ -488,7 +509,82 @@
       paintFileStatus();
     };
     const preview = $(".md-preview", host);
-    const paintPreview = () => st.preview && st.model && renderMarkdown(preview, st.model.getValue(), p);
+    // ----- đồng bộ cuộn editor <-> preview: neo theo data-line của từng khối, nội suy tuyến tính giữa hai neo.
+    // mute chặn vòng lặp: cuộn do code gây ra ở một bên không được đẩy ngược lại bên kia.
+    const mute = { editor: 0, preview: 0 };
+    let anchors = null;
+    const getAnchors = () => {
+      if (anchors && anchors.h === preview.scrollHeight && anchors.w === preview.clientWidth) return anchors;
+      const base = preview.getBoundingClientRect().top - preview.scrollTop;
+      const list = [{ line: 1, top: 0 }];
+      for (const el of preview.querySelectorAll(":scope > [data-line]")) {
+        const line = Number(el.dataset.line);
+        const top = el.getBoundingClientRect().top - base;
+        const last = list[list.length - 1];
+        if (line > last.line && top > last.top) list.push({ line, top });
+      }
+      const end = st.model.getLineCount() + 1;
+      if (end > list[list.length - 1].line) list.push({ line: end, top: Math.max(preview.scrollHeight, list[list.length - 1].top + 1) });
+      return (anchors = Object.assign(list, { h: preview.scrollHeight, w: preview.clientWidth }));
+    };
+    const mapScroll = (from, to, v) => {
+      const a = getAnchors();
+      let i = 0;
+      while (i < a.length - 2 && a[i + 1][from] <= v) i++;
+      const [x, y] = [a[i], a[i + 1] || a[i]];
+      const r = y[from] > x[from] ? Math.min(1, Math.max(0, (v - x[from]) / (y[from] - x[from]))) : 0;
+      return x[to] + (y[to] - x[to]) * r;
+    };
+    const lineTop = (n) => st.editor.getTopForLineNumber(Math.min(Math.max(1, n), st.model.getLineCount()));
+    // dòng (có phần lẻ) đang nằm ở mép trên editor
+    const editorLine = () => {
+      const top = st.editor.getScrollTop();
+      const n = st.editor.getVisibleRanges()[0]?.startLineNumber || 1;
+      const y0 = lineTop(n);
+      const y1 = n < st.model.getLineCount() ? lineTop(n + 1) : y0;
+      return n + (y1 > y0 ? Math.min(1, Math.max(0, (top - y0) / (y1 - y0))) : 0);
+    };
+    const syncPreview = () => {
+      if (!st.preview || !st.editor || performance.now() < mute.editor) return;
+      const ed = st.editor;
+      const top = ed.getScrollTop();
+      const atEnd = top > 0 && top + ed.getLayoutInfo().height >= ed.getScrollHeight() - 2;
+      mute.preview = performance.now() + 150;
+      preview.scrollTop = atEnd ? preview.scrollHeight : mapScroll("line", "top", editorLine());
+    };
+    const syncEditor = () => {
+      if (!st.preview || !st.editor || performance.now() < mute.preview) return;
+      const ed = st.editor;
+      const top = preview.scrollTop;
+      const atEnd = top > 0 && top >= preview.scrollHeight - preview.clientHeight - 2;
+      const immediate = window.monaco.editor.ScrollType.Immediate;
+      mute.editor = performance.now() + 150;
+      if (atEnd) return ed.setScrollTop(ed.getScrollHeight(), immediate);
+      const line = mapScroll("top", "line", top);
+      const n = Math.floor(line);
+      ed.setScrollTop(lineTop(n) + (lineTop(n + 1) - lineTop(n)) * (line - n), immediate);
+    };
+    // ảnh trong preview tải xong / khung đổi kích thước làm lệch vị trí: căn lại theo editor
+    let resyncFrame = 0;
+    const resync = () => {
+      cancelAnimationFrame(resyncFrame);
+      resyncFrame = requestAnimationFrame(syncPreview);
+    };
+    preview.addEventListener("scroll", syncEditor, { passive: true });
+    preview.addEventListener("load", resync, true);
+    const previewResize = new ResizeObserver(resync);
+    previewResize.observe(preview);
+    const paintPreview = async () => {
+      if (!st.preview || !st.model) return;
+      mute.preview = Infinity; // dựng lại HTML có thể đổi scrollTop của preview, không đẩy ngược sang editor
+      try {
+        await renderMarkdown(preview, st.model.getValue(), p);
+      } finally {
+        anchors = null;
+        mute.preview = performance.now() + 150;
+      }
+      syncPreview();
+    };
     (async () => {
       let file;
       try {
@@ -540,6 +636,7 @@
         clearTimeout(st.autoTimer);
         if (w.autoSave && !st.readonly && !st.autoBlocked) st.autoTimer = setTimeout(() => inst.isDirty() && inst.save(false, { auto: true }), w.autoSaveDelay || 1000);
       });
+      st.editor.onDidScrollChange((e) => e.scrollTopChanged && syncPreview());
       st.editor.onDidFocusEditorText(() => paintFileStatus());
       st.editor.onDidChangeCursorSelection(() => W.active?.inst === inst && paintFileStatus());
       paintRo();
@@ -627,6 +724,8 @@
         st.disposed = true;
         clearTimeout(st.autoTimer);
         clearTimeout(st.lintTimer);
+        cancelAnimationFrame(resyncFrame);
+        previewResize.disconnect();
         st.editor?.dispose();
         st.model?.dispose();
       },
