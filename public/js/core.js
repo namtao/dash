@@ -615,17 +615,11 @@ const W = (() => {
   };
   function paintStatus() {
     for (const side of ["left", "right"]) {
-      const host = $(`#sb-${side}`);
-      const keep = side === "left" ? $("#topbar-stats") : null;
-      const html = [...sbItems.entries()]
+      $(`#sb-${side}`).innerHTML = [...sbItems.entries()]
         .filter(([, v]) => v.side === side && v.html)
         .sort((a, b) => a[1].order - b[1].order)
         .map(([id, v]) => `<button class="sb-item ${v.cls || ""}" data-sb="${id}" ${v.cmd ? `data-cmd="${v.cmd}"` : ""} title="${esc(v.title || "")}">${v.html}</button>`)
         .join("");
-      if (keep) {
-        $$(".sb-item", host).forEach((x) => x.remove());
-        keep.insertAdjacentHTML("afterend", html);
-      } else host.innerHTML = html;
     }
   }
 

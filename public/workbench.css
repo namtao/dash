@@ -322,7 +322,6 @@ body.resizing iframe, body.resizing .xterm { pointer-events: none; }
 .sb-item { display: flex; align-items: center; gap: 5px; height: 22px; padding: 0 7px; border: 0; background: transparent; cursor: pointer; color: inherit; white-space: nowrap; border-radius: 3px; }
 .sb-item:hover { background: var(--wb-hover); color: var(--text); }
 .sb-item svg { width: 13px; height: 13px; }
-.statusbar .topbar-stats .chip { height: 18px; padding: 0 7px; font-size: 11px; }
 .sb-meter { display: inline-flex; gap: 4px; align-items: center; padding: 0 3px; }
 .sb-meter b { font-weight: 600; color: var(--faint); }
 .sb-meter.ok { color: var(--green-text); }
@@ -569,12 +568,6 @@ textarea.cell-input { min-height: 80px; position: relative; z-index: 4; }
 .ask-detail { margin: 10px 0 0; padding: 8px 10px; max-height: 200px; overflow: auto; border-radius: 6px; background: var(--log-bg); font: 12px var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
 
 /* ---------- status bar ---------- */
-.topbar-stats { display: flex; align-items: center; gap: 10px; padding: 0 6px; font-size: 11.5px; white-space: nowrap; min-width: 0; overflow: hidden; }
-.sb-stat { display: inline-flex; align-items: center; gap: 4px; }
-.sb-stat .dot { width: 7px; height: 7px; }
-.sb-stat.on { color: var(--green-text); }
-.sb-proj { color: var(--text-2); overflow: hidden; text-overflow: ellipsis; }
-.sb-proj b { font-weight: 600; margin-right: 3px; }
 .sb-item.sb-dim { opacity: 0.55; }
 .sb-item.sb-warn { color: var(--amber-text); }
 .sb-item .err { color: var(--red-text); }
@@ -680,7 +673,6 @@ textarea.cell-input { min-height: 80px; position: relative; z-index: 4; }
   .editors > main.main { padding: 12px 10px 40px; }
   .statusbar { height: 22px; overflow: hidden; }
   .sb-item:not([data-sb="claude"]):not([data-sb="terminals"]):not([data-sb="file-size"]) { display: none; }
-  .sb-stat:not(.on):not(.sb-proj) { display: none; }
   .term-list { width: 110px; }
   .modal, .modal.wide { width: calc(100vw - 16px); max-height: calc(100dvh - 16px); }
   .modal-body { max-height: calc(100dvh - 150px); }

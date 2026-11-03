@@ -53,7 +53,7 @@ Install Dash as an app from the browser menu (**Install** / **Open as window**) 
 | Editor tabs | Overview / project details, files, diffs, SQL queries, Settings. Tabs reopen after a reload, can be reordered by dragging and closed with a middle click. Unsaved tabs show ● and ask before closing. |
 | Panel (bottom) | Terminal, Problems, History, Output (backup/restore logs). Hidden when the page opens; it appears when you open a terminal. |
 | Claude (right) | Claude Code conversations |
-| Status bar | Projects, running processes, open ports and memory; PID, uptime, CPU and RAM of the open project's commands; git branch; problems in the open file; Claude 5h / week usage; read-only flag and size of the open file; number of terminals |
+| Status bar | Git branch; problems in the open file; Claude 5h / week usage; read-only flag and size of the open file; number of terminals |
 
 The **current folder** is shared within a window: Explorer, Source Control, History, new terminals and new Claude conversations all use it.
 
@@ -143,7 +143,6 @@ The **current folder** is shared within a window: Explorer, Source Control, Hist
 - **Env, Packages, Project detection, Ports**: conda / venv / uv, pip / uv / npm / yarn / pnpm / bun, framework detection and the listening-ports table.
 - Projects with running commands are listed first.
 - **SSH projects**: in Add project, pick an SSH profile and enter the path on that machine. Commands run there through `ssh -tt`, Terminal opens an SSH shell in the folder, and Files opens the remote folder.
-- In a project's page the overview cards move to the status bar, together with the PID, uptime, CPU and RAM of that project's running commands.
 - Project buttons: **Terminal** (opens a Dash terminal in the project folder), **Files** (Explorer), **Claude**, and **Folder** (system file manager).
 
 ### Settings and shortcuts

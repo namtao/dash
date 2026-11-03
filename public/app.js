@@ -166,7 +166,6 @@ async function loadConfig() {
 // ---------- render: khung ----------
 function render() {
   renderSidebar();
-  renderTopStats();
   renderMain();
 }
 
@@ -202,29 +201,6 @@ function renderSidebar() {
       })
       .join("") || `<li class="faint" style="cursor:default">No projects</li>`;
   $(".nav-home").classList.toggle("active", !S.sel);
-}
-
-// Status bar: thống kê chung và tiến trình của dự án đang mở (PID, thời gian chạy, CPU, RAM)
-function renderTopStats() {
-  const el = $("#topbar-stats");
-  if (!el || !S.config) return;
-  const runs = Object.entries(S.status.runs).filter(([, r]) => r.running);
-  const mem = runs.reduce((a, [, r]) => a + (r.rssKB || 0), 0);
-  const ports = new Set(S.config.projects.flatMap((p) => p.commands.filter((c) => c.port && portOpen(c.port)).map((c) => c.port))).size;
-  let html = `<span class="sb-stat" title="Projects">▦ ${S.config.projects.length}</span>
-    <span class="sb-stat ${runs.length ? "on" : ""}" title="Running processes"><span class="dot ${runs.length ? "on" : ""}"></span>${runs.length} running</span>
-    <span class="sb-stat" title="Open ports of project commands">⇄ ${ports}</span>
-    <span class="sb-stat" title="Memory used by running commands">${fmtMem(mem)}</span>`;
-  const p = project() || project(window.W?.wsId);
-  const own = p ? runs.filter(([k]) => k.startsWith(`${p.id}/`)) : [];
-  if (own.length) {
-    const cpu = own.reduce((a, [, r]) => a + (Number(r.cpu) || 0), 0);
-    const rss = own.reduce((a, [, r]) => a + (r.rssKB || 0), 0);
-    const first = Math.min(...own.map(([, r]) => r.startedAt));
-    const detail = own.map(([k, r]) => `${r.label || k.split("/")[1]}: PID ${r.pid} · ${fmtDuration(Date.now() - r.startedAt)} · CPU ${r.cpu}% · ${fmtMem(r.rssKB)}`).join("\n");
-    html += `<span class="sb-stat sb-proj" title="${esc(detail)}"><b>${esc(p.name)}</b> PID ${own.map(([, r]) => r.pid).join(", ")} · ⏱ ${fmtDuration(Date.now() - first)} · CPU ${Math.round(cpu * 10) / 10}% · RAM ${fmtMem(rss)}</span>`;
-  }
-  el.innerHTML = html;
 }
 
 function renderMain() {
@@ -775,7 +751,6 @@ function parseEnvVars(text) {
 function patchStatus() {
   window.W?.paintWorkspaceTabs?.();
   renderSidebar();
-  renderTopStats();
   const p = project();
   // phần trên và lưới dự án không có ô nhập: vẽ lại để số liệu luôn mới
   const top = $("#overview-top");
@@ -1506,6 +1481,5 @@ function applyTheme() {
   setInterval(() => {
     // cập nhật thời gian "chạy …" giữa các lần poll
     for (const el of $$("[data-stats]")) el.innerHTML = statsHTML(el.dataset.stats);
-    renderTopStats();
   }, 1000);
 })();
