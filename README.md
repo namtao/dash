@@ -146,6 +146,7 @@ The **current folder** is shared within a window: Explorer, Source Control, Hist
 - **Logs**: live view with the program's ANSI colors, download and clear. Logs are stored in `logs/<project>/<command>.log` and rotate at 5 MB.
 - **Quick shell**: runs a command in the project's folder and env inside a PTY, so `ls`, `git` and test runners print in color. The `$ command` line is highlighted like zsh.
 - **Env, Packages, Project detection, Ports**: conda / venv / uv, pip / uv / npm / yarn / pnpm / bun, framework detection and the listening-ports table.
+- **Python env picker**: the 🐍 item in the status bar (or *Select Python environment…* in the command palette) lists the venvs found in the project (up to two folders deep) and your conda envs. The chosen env is used by project commands, and every new bash or zsh terminal opened inside the project folder activates it after loading your rc file. Other shells get the env's `bin/` first on PATH. The terminal list shows the env each bash / zsh terminal is in, and it updates when you activate or deactivate an env by hand.
 - Projects with running commands are listed first.
 - **SSH projects**: in Add project, pick an SSH profile and enter the path on that machine. Commands run there through `ssh -tt`, Terminal opens an SSH shell in the folder, and Files opens the remote folder.
 - Project buttons: **Terminal** (opens a Dash terminal in the project folder), **Files** (Explorer), **Claude**, and **Folder** (system file manager).

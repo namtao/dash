@@ -1,6 +1,7 @@
 # Dash: nạp ~/.bashrc rồi báo lệnh vừa chạy và thư mục hiện tại cho Dash (OSC 633).
 [ -f /etc/bash.bashrc ] && . /etc/bash.bashrc
 [ -f ~/.bashrc ] && . ~/.bashrc
+. "${BASH_SOURCE[0]%/*}/activate-python-env.sh"
 __dash_esc() { local s=${1//\\/\\\\}; s=${s//;/\\x3b}; s=${s//$'\n'/\\x0a}; printf '%s' "$s"; }
 __dash_last=$(HISTTIMEFORMAT= builtin history 1)
 __dash_prompt() {
@@ -10,7 +11,7 @@ __dash_prompt() {
     __dash_last=$cur
     printf '\e]633;E;%s\a\e]633;D;%s\a' "$(__dash_esc "$(sed 's/^ *[0-9]* *//' <<<"$cur")")" "$ec"
   fi
-  printf '\e]633;P;Cwd=%s\a' "$(__dash_esc "$PWD")"
+  printf '\e]633;P;Cwd=%s\a\e]633;P;PyEnv=%s\a' "$(__dash_esc "$PWD")" "$(__dash_esc "$(__dash_pyenv)")"
   return $ec
 }
 PROMPT_COMMAND="__dash_prompt${PROMPT_COMMAND:+;$PROMPT_COMMAND}"

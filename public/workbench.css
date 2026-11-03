@@ -211,6 +211,8 @@ body.resizing iframe, body.resizing .xterm { pointer-events: none; }
 .tl-icon { width: 12px; color: var(--accent-text); font-family: var(--mono); }
 .tl-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tl-key { font: 10px var(--mono); color: var(--faint); }
+.tl-env { flex: 0 1 auto; max-width: 55%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 10.5px var(--mono); color: var(--green-text, var(--muted)); }
+.tl-env::before { content: "🐍 "; }
 .tl-kill { visibility: hidden; min-width: 18px; height: 18px; font-size: 10px; }
 .tl-item:hover .tl-kill { visibility: visible; }
 

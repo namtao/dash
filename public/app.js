@@ -580,7 +580,7 @@ function envTab(p) {
     <div class="card">
       <div class="card-head"><h3>Status</h3><div class="btn-group"><button class="btn sm ghost" data-action="refresh-info">Refresh</button></div></div>
       <div class="card-body">${statusBox}
-        <div class="notice" style="margin-top:14px">Every project command runs with the env's <code>bin/</code> first on PATH, so <code>python</code>, <code>pip</code>, <code>uvicorn</code>… come from this env. No <code>activate</code> needed.</div>
+        <div class="notice" style="margin-top:14px">Every project command runs with the env's <code>bin/</code> first on PATH, so <code>python</code>, <code>pip</code>, <code>uvicorn</code>… come from this env. No <code>activate</code> needed. New terminals opened inside the project folder (bash or zsh) activate it automatically.</div>
       </div>
     </div>
   </div>
@@ -838,6 +838,7 @@ async function saveProject(p, patch, msg = "Saved") {
   const updated = await guarded(() => api("PUT", `/api/projects/${p.id}`, { ...p, ...patch }), msg);
   if (!updated) return null;
   await loadConfig();
+  if (typeof W !== "undefined") W.emit("config");
   return updated;
 }
 
@@ -940,13 +941,19 @@ const actions = {
   "refresh-info": () => loadInfo(),
   "env-create": () => {
     const p = project();
-    startProjectTask(`/api/projects/${p.id}/env/create`, {}, () => loadInfo());
+    startProjectTask(`/api/projects/${p.id}/env/create`, {}, () => {
+      loadInfo();
+      W.emit("pyenv");
+    });
   },
   "env-remove": async () => {
     const p = project();
     const target = S.info?.env?.target;
     if (!(await confirmDialog(`Delete env ${target}?\nAll packages installed in it will be lost.`, { title: "Delete env", ok: "Delete", danger: true }))) return;
-    startProjectTask(`/api/projects/${p.id}/env/remove`, {}, () => loadInfo());
+    startProjectTask(`/api/projects/${p.id}/env/remove`, {}, () => {
+      loadInfo();
+      W.emit("pyenv");
+    });
   },
   "pkg-refresh": () => loadPackages(),
   "pkg-outdated": () => {

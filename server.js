@@ -188,6 +188,13 @@ route("POST", "/api/projects/:id/env/:action", async (req, { id, action }) => {
   return result;
 });
 route("GET", "/api/conda-envs", async () => pyenv.condaEnvs(true));
+// Env có thể chọn cho dự án (venv trong thư mục dự án + env conda) và env đang chọn
+route("GET", "/api/projects/:id/python-envs", async (req, { id }) => {
+  const project = store.getProject(id);
+  if (remote.isRemote(project.path)) return { remote: true, env: project.env, status: { exists: false }, venvs: [], conda: [] };
+  const [status, conda] = await Promise.all([pyenv.status(project), pyenv.condaEnvs()]);
+  return { env: project.env, status, venvs: pyenv.scanVenvs(project.path), conda };
+});
 
 // ---------- Thư viện ----------
 route("GET", "/api/projects/:id/packages", async (req, { id }, url) => packages.list(store.getProject(id), url.searchParams.get("manifest")));

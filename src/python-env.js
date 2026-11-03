@@ -128,8 +128,59 @@ function removeArgv(project) {
   throw new Error("This project has no env");
 }
 
+// Các venv có sẵn trong dự án: thư mục chứa pyvenv.cfg, sâu tối đa 2 cấp (vd. .venv, backend/.venv).
+const SCAN_SKIP = new Set(["node_modules", ".git", "__pycache__", ".cache", ".next", "dist", "build", "logs", ".mypy_cache", ".pytest_cache", ".ruff_cache"]);
+function scanVenvs(root) {
+  const out = [];
+  const walk = (dir, depth) => {
+    let entries;
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const d of entries) {
+      if (!d.isDirectory() || SCAN_SKIP.has(d.name)) continue;
+      const full = path.join(dir, d.name);
+      let cfg = null;
+      try {
+        cfg = fs.readFileSync(path.join(full, "pyvenv.cfg"), "utf8");
+      } catch {}
+      if (cfg !== null) {
+        if (!fs.existsSync(path.join(full, "bin/python"))) continue;
+        const version = cfg.match(/^\s*version(?:_info)?\s*=\s*(\S+)/m)?.[1] || "";
+        out.push({ path: path.relative(root, full), python: version, kind: /^\s*uv\s*=/m.test(cfg) ? "uv" : "venv" });
+      } else if (depth < 2) walk(full, depth + 1);
+    }
+  };
+  walk(root, 1);
+  return out.sort((a, b) => a.path.split("/").length - b.path.split("/").length || a.path.localeCompare(b.path));
+}
+
+// Biến môi trường để shell của terminal kích hoạt env của dự án sau khi nạp rc của người dùng
+// (shell-integration/activate.sh). Shell khác bash/zsh không có hook: chèn thẳng bin/ vào PATH.
+async function terminalEnv(project, shellName) {
+  const prefix = await envPrefix(project);
+  if (!prefix) return {};
+  const conda = project.env.type === "conda";
+  if (shellName === "bash" || shellName === "zsh") {
+    const out = { DASH_PYENV: prefix, DASH_PYENV_KIND: conda ? "conda" : "venv" };
+    const bin = conda && which("conda");
+    if (bin) {
+      // conda nằm ở <base>/bin/conda hoặc <base>/condabin/conda
+      const sh = path.resolve(fs.realpathSync(bin), "../../etc/profile.d/conda.sh");
+      if (fs.existsSync(sh)) out.DASH_CONDA_SH = sh;
+    }
+    return out;
+  }
+  const out = { PATH: `${path.join(prefix, "bin")}:${process.env.PATH}` };
+  if (conda) Object.assign(out, { CONDA_PREFIX: prefix, CONDA_DEFAULT_ENV: path.basename(prefix) });
+  else out.VIRTUAL_ENV = prefix;
+  return out;
+}
+
 function invalidateConda() {
   condaCache.at = 0;
 }
 
-module.exports = { run, which, condaEnvs, envPrefix, processEnv, status, createArgv, removeArgv, invalidateConda };
+module.exports = { run, which, condaEnvs, envPrefix, processEnv, status, createArgv, removeArgv, invalidateConda, scanVenvs, terminalEnv };

@@ -346,6 +346,14 @@
     requestAnimationFrame(() => g?.panes.forEach((id) => panes.get(id)?.resize()));
   }
 
+  // Tên ngắn của env Python: conda lấy tên env, venv tên chung (.venv, venv, env) kèm thư mục cha
+  function envName(prefix) {
+    const parts = prefix.replace(/\/+$/, "").split("/");
+    const base = parts.pop();
+    const parent = parts.pop() || "";
+    return parent !== "envs" && [".venv", "venv", "env", ".env"].includes(base) ? `${parent}/${base}` : base;
+  }
+
   function paintList() {
     if (!root) return;
     const list = $(".term-list", root);
@@ -355,8 +363,8 @@
         return `<div class="tl-group ${g.id === activeGroup ? "active" : ""}" data-group="${g.id}">
           ${items
             .map(
-              (p, j) => `<div class="tl-item ${p.id === focused ? "focused" : ""} ${p.info.exited ? "exited" : ""}" data-tl="${p.id}" title="${esc(p.info.cwd || "")}">
-              <span class="tl-icon">${j ? "├" : p.info.kind === "ssh" ? "⇄" : "›"}</span><span class="tl-title">${esc(titleOf(p))}</span>${i < 8 && !j ? `<span class="tl-key">${i + 1}</span>` : ""}
+              (p, j) => `<div class="tl-item ${p.id === focused ? "focused" : ""} ${p.info.exited ? "exited" : ""}" data-tl="${p.id}" title="${esc(p.info.cwd || "")}${p.info.pyenv ? `\nPython env: ${esc(p.info.pyenv)}` : ""}">
+              <span class="tl-icon">${j ? "├" : p.info.kind === "ssh" ? "⇄" : "›"}</span><span class="tl-title">${esc(titleOf(p))}</span>${p.info.pyenv ? `<span class="tl-env">${esc(envName(p.info.pyenv))}</span>` : ""}${i < 8 && !j ? `<span class="tl-key">${i + 1}</span>` : ""}
               <button class="icon tl-kill" data-kill="${p.id}" title="Kill">✕</button></div>`
             )
             .join("")}</div>`;
@@ -534,6 +542,12 @@
     if (!p) return;
     p.info.cwd = m.cwd;
     if (p.info.kind === "shell" && !p.renamed) p.info.title = W.base(m.cwd) || "/";
+    paintList();
+  });
+  W.onMsg("term.pyenv", (m) => {
+    const p = panes.get(m.id);
+    if (!p) return;
+    p.info.pyenv = m.pyenv;
     paintList();
   });
   W.onMsg("term.renamed", (m) => {

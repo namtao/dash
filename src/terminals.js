@@ -8,6 +8,7 @@ const path = require("path");
 const pty = require("node-pty");
 const store = require("./store");
 const history = require("./history");
+const pyenv = require("./python-env");
 
 const SHIM_DIR = path.join(store.ROOT, "shell-integration");
 const REPLAY_BYTES = 512 * 1024;
@@ -63,6 +64,12 @@ function scanOsc(t, data) {
         t.cwd = cwd;
         emit("cwd", { id: t.id, ws: t.ws, cwd });
       }
+    } else if (kind === "P" && arg.startsWith("PyEnv=")) {
+      const envPath = unescapeOsc(arg.slice(6)) || null;
+      if (envPath !== t.pyenv) {
+        t.pyenv = envPath;
+        emit("pyenv", { id: t.id, ws: t.ws, pyenv: envPath });
+      }
     }
   }
   // Giữ phần đuôi có thể là chuỗi OSC chưa trọn để ghép với lần đọc sau
@@ -72,11 +79,19 @@ function scanOsc(t, data) {
 }
 
 function info(t) {
-  return { id: t.id, ws: t.ws, title: t.title, kind: t.kind, cwd: t.cwd, pid: t.proc.pid, createdAt: t.createdAt, exited: t.exited, exitCode: t.exitCode, sshId: t.sshId || null };
+  return { id: t.id, ws: t.ws, title: t.title, kind: t.kind, cwd: t.cwd, pyenv: t.pyenv, pid: t.proc.pid, createdAt: t.createdAt, exited: t.exited, exitCode: t.exitCode, sshId: t.sshId || null };
+}
+
+// Dự án (local) chứa thư mục này; dự án lồng nhau thì lấy dự án sâu nhất.
+function projectOf(dir) {
+  return store
+    .load()
+    .projects.filter((p) => !store.REMOTE_RE.test(p.path) && (dir === p.path || dir.startsWith(p.path.replace(/\/+$/, "") + path.sep)))
+    .sort((a, b) => b.path.length - a.path.length)[0];
 }
 
 // opts: { cwd, title, argv?: [file, ...args] (vd. ssh), sshId, cols, rows, ws (cửa sổ sở hữu: "main" hoặc id dự án) }
-function create(opts = {}) {
+async function create(opts = {}) {
   const ws = store.load().workspace;
   let cwd = opts.cwd && fs.existsSync(opts.cwd) ? path.resolve(opts.cwd) : os.homedir();
   try {
@@ -89,7 +104,15 @@ function create(opts = {}) {
   } else {
     const sh = shellArgv(ws.shell);
     ({ file, args } = sh);
-    env = baseEnv(sh.env);
+    // Terminal mở trong thư mục dự án: kích hoạt môi trường Python đã chọn cho dự án
+    const project = projectOf(cwd);
+    let pyEnv = {};
+    if (project) {
+      try {
+        pyEnv = await pyenv.terminalEnv(project, path.basename(file));
+      } catch {}
+    }
+    env = baseEnv({ ...sh.env, ...pyEnv });
   }
   const cols = Math.max(20, Number(opts.cols) || 120);
   const rows = Math.max(5, Number(opts.rows) || 30);
@@ -109,6 +132,7 @@ function create(opts = {}) {
     buffer: "",
     oscTail: "",
     pending: null,
+    pyenv: null, // env Python đang bật trong shell (shell báo qua OSC 633 PyEnv=)
     cols,
     rows,
   };

@@ -1,5 +1,6 @@
 ZDOTDIR=$DASH_USER_ZDOTDIR
 [[ -f $ZDOTDIR/.zshrc ]] && source $ZDOTDIR/.zshrc
+source $DASH_SHIM_DIR/../activate-python-env.sh
 unset DASH_SHIM_DIR DASH_USER_ZDOTDIR
 
 __dash_esc() {
@@ -13,7 +14,7 @@ __dash_esc() {
 __dash_preexec() { print -rn -- $'\e]633;E;'"$(__dash_esc "$1")"$'\a'; }
 __dash_precmd() {
   local ec=$?
-  print -rn -- $'\e]633;D;'$ec$'\a'$'\e]633;P;Cwd='"$(__dash_esc "$PWD")"$'\a'
+  print -rn -- $'\e]633;D;'$ec$'\a'$'\e]633;P;Cwd='"$(__dash_esc "$PWD")"$'\a'$'\e]633;P;PyEnv='"$(__dash_esc "$(__dash_pyenv)")"$'\a'
 }
 autoload -Uz add-zsh-hook
 add-zsh-hook preexec __dash_preexec
