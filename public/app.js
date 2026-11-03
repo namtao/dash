@@ -268,7 +268,7 @@ function runningTable() {
       </td></tr>`);
   }
   if (!rows.length) return `<div class="empty">Nothing is running.</div>`;
-  return `<div class="table-wrap"><table><thead><tr><th>Project</th><th>Command</th><th>PID</th><th>Uptime</th><th>CPU</th><th>RAM</th><th></th></tr></thead><tbody>${rows.join("")}</tbody></table></div>`;
+  return `<div class="table-wrap"><table class="run-table"><thead><tr><th>Project</th><th>Command</th><th>PID</th><th>Uptime</th><th>CPU</th><th>RAM</th><th></th></tr></thead><tbody>${rows.join("")}</tbody></table></div>`;
 }
 
 const isRemotePath = (p) => String(p || "").startsWith("ssh://");
@@ -754,7 +754,13 @@ function patchStatus() {
   const p = project();
   // phần trên và lưới dự án không có ô nhập: vẽ lại để số liệu luôn mới
   const top = $("#overview-top");
-  if (top && S.config) top.innerHTML = overviewTop();
+  if (top && S.config) {
+    // vẽ lại sẽ đưa bảng đang chạy về đầu khi đang cuộn ngang: giữ vị trí cuộn
+    const x = top.querySelector(".table-wrap")?.scrollLeft || 0;
+    top.innerHTML = overviewTop();
+    const wrap = top.querySelector(".table-wrap");
+    if (wrap) wrap.scrollLeft = x;
+  }
   if (!p) {
     const detail = $("#detail");
     if (detail && S.config) detail.innerHTML = projectsGrid();

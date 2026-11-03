@@ -675,8 +675,9 @@ textarea.cell-input { min-height: 80px; position: relative; z-index: 4; }
   .wb-body { position: relative; flex-direction: column-reverse; }
   /* activity bar thành thanh dưới cùng, cuộn ngang */
   .activitybar { width: 100%; height: 46px; flex-direction: row; border-right: 0; border-top: 1px solid var(--wb-border); overflow-x: auto; scrollbar-width: none; }
-  .ab-top, .ab-bottom { display: flex; }
-  .ab-item { width: 46px; height: 46px; flex: none; border-left: 0; border-top: 2px solid transparent; }
+  /* các nút chia đều bề ngang để thấy đủ trên điện thoại; quá hẹp (dưới 36px mỗi nút) thì mới cuộn */
+  .ab-top, .ab-bottom { display: contents; }
+  .ab-item { width: auto; min-width: 36px; height: 46px; flex: 1 1 0; border-left: 0; border-top: 2px solid transparent; }
   .ab-item.active { border-top-color: var(--accent); }
   /* side bar và Claude trượt lên che vùng editor */
   .sidebar-pane, .aux { position: absolute; z-index: 30; top: 0; bottom: 46px; width: min(92vw, 420px) !important; box-shadow: var(--shadow-lg); }
@@ -701,11 +702,37 @@ textarea.cell-input { min-height: 80px; position: relative; z-index: 4; }
   .with-preview .md-preview { border-left: 0; border-top: 1px solid var(--wb-border); }
   .phead { flex-direction: column; align-items: stretch; gap: 10px; }
   .ph-meta { flex-wrap: wrap; }
-  .ph-meta .chip { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* inline-flex bỏ qua text-overflow, nên chuyển sang inline-block để có dấu … */
+  .ph-meta .chip { display: inline-block; line-height: 20px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* tab panel co lại (cắt chữ) để nút ẩn / phóng to panel luôn nằm trong màn hình */
+  .panel-tabs { padding: 0 4px; }
+  .ptab { flex: 0 1 auto; min-width: 0; padding: 0 6px; letter-spacing: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ptab-actions, .panel-tabs > .icon { flex: none; }
   .cmd { grid-template-columns: auto 1fr; }
   .cmd .btn-group { grid-column: 1 / -1; flex-wrap: wrap; }
   .tab-close { visibility: visible; }
   .stats { grid-template-columns: repeat(2, 1fr); }
+  /* khung log: tab lệnh một hàng riêng, nút Wrap/Expand/… xuống hàng dưới thay vì đè lên tab */
+  .log-card .card-head { flex-wrap: wrap; padding: 10px 12px; }
+  .log-card .log-tabs { flex-basis: 100%; }
+  .log-card .card-head .btn-group { margin-left: 0; }
+  .log-card .shell { flex-wrap: wrap; }
+  .log-card .shell input.cmd-input { flex-basis: calc(100% - 24px); }
+  .log-card .shell input.cwd-input { flex: 1; width: auto; min-width: 0; }
+  /* bảng "Running": mỗi tiến trình thành một khối gọn, không phải cuộn ngang */
+  .run-table, .run-table tbody { display: block; }
+  .run-table thead { display: none; }
+  .run-table tr { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; padding: 8px 12px; border-bottom: 1px solid var(--line-soft); }
+  .run-table td { display: block; padding: 0; border: 0; min-width: 0; }
+  .run-table td:nth-child(1) { flex: 1; font-weight: 500; }
+  .run-table td.actions { order: 1; }
+  .run-table td:nth-child(2) { order: 2; flex-basis: 100%; }
+  .run-table td:nth-child(2) .sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .run-table td:nth-child(n+3):not(.actions) { order: 3; font-size: 12px; color: var(--muted); }
+  .run-table td:nth-child(3)::before { content: "PID "; }
+  .run-table td:nth-child(4)::before { content: "Up "; }
+  .run-table td:nth-child(5)::before { content: "CPU "; }
+  .run-table td:nth-child(6)::before { content: "RAM "; }
 }
 
 /* menu chuột phải của Monaco luôn nằm trên cùng, có bóng đổ */
