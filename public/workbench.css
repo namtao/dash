@@ -279,7 +279,9 @@ body.resizing iframe, body.resizing .xterm { pointer-events: none; }
 .scm-msg { width: 100%; resize: vertical; min-height: 54px; font: 12.5px var(--sans); background: var(--wb-input); }
 .scm-commit-row { display: flex; gap: 4px; }
 .scm-commit-btn { flex: 1; }
-.scm-body { flex: 1; overflow: auto; }
+.scm-body { flex: 1; overflow: auto; display: flex; flex-direction: column; }
+/* Commits thu gọn: đầu mục dồn xuống đáy khung, luôn thấy kể cả khi danh sách thay đổi dài */
+.scm-log.collapsed { margin-top: auto; position: sticky; bottom: 0; background: var(--wb-side); border-top: 1px solid var(--wb-border); }
 .scm-sec-head {
   display: flex; align-items: center; gap: 6px; height: 24px; padding: 0 8px 0 12px;
   font: 700 11px var(--sans); text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted);

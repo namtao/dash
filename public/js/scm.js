@@ -79,7 +79,7 @@
       section("Staged changes", "staged", st.staged, `<button class="icon" data-scm="unstage-all" title="Unstage all">−</button>`) +
       section("Changes", "changes", st.changes, `<button class="icon" data-scm="discard-all" title="Discard all changes">↶</button><button class="icon" data-scm="stage-all" title="Stage all">＋</button>`) +
       (nothing ? `<div class="empty faint">No changes</div>` : "") +
-      `<div class="scm-sec"><div class="scm-sec-head clickable" data-scm="toggle-log"><span>${showLog ? "▾" : "▸"} Commits</span></div>${showLog ? logHtml() : ""}</div>`;
+      `<div class="scm-sec scm-log${showLog ? "" : " collapsed"}"><div class="scm-sec-head clickable" data-scm="toggle-log"><span>${showLog ? "▾" : "▸"} Commits</span></div>${showLog ? logHtml() : ""}</div>`;
     const btn = $(".scm-commit-btn", root);
     btn.disabled = busy;
     btn.textContent = st.staged.length ? `✓ Commit (${st.staged.length})` : "✓ Commit all";
