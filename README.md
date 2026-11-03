@@ -100,7 +100,7 @@ The **current folder** is shared within a window: Explorer, Source Control, Hist
 
 ### Source Control
 - Changes, staged changes and conflicts, each with stage, unstage and discard actions.
-- Commit (Ctrl+Enter in the message box), commit all, amend, pull, push, fetch, switch or create a branch, and the commit history with the files of each commit.
+- Commit (Ctrl+Enter in the message box), commit all, amend, commit & push, pull, push, fetch, switch or create a branch, and the commit history with the files of each commit.
 - Clicking a file opens a side-by-side diff (or inline) with next/previous change. In the working-tree diff the right side is editable, and Ctrl+S saves it to the file.
 - The ✦ button in the message box (Ctrl+Alt+M) asks the local AI for a Conventional Commits message, from the staged changes or, when nothing is staged, from all changes.
 

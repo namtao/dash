@@ -118,22 +118,31 @@
     const message = box.value.trim();
     if (!message && !opts.amend) {
       box.focus();
-      return toast("Type a commit message first", "error");
+      toast("Type a commit message first", "error");
+      return false;
     }
     busy = true;
     paint();
+    let ok = false;
     try {
       await api("POST", "/api/git/commit", { dir: W.folder, message, amend: opts.amend, all: !st.staged.length || opts.all });
       box.value = "";
       store.set(`commitMsg:${st.root}`, "");
       toast("Committed", "ok");
       log = null;
+      ok = true;
     } catch (e) {
       toast(e.message, "error");
     }
     busy = false;
     await refresh();
     W.emit("git:changed");
+    return ok;
+  }
+
+  // Commit rồi push ngay; commit lỗi (thiếu message, hook từ chối…) thì không push
+  async function commitPush(opts = {}) {
+    if (await commit(opts)) await sync("push");
   }
 
   // Commit message do AI chạy local viết từ diff (đã stage, hoặc toàn bộ nếu chưa stage gì)
@@ -226,6 +235,9 @@
             { label: "Commit staged", run: () => commit() },
             { label: "Commit all (stage everything)", run: () => commit({ all: true }) },
             { label: "Amend last commit", run: () => commit({ amend: true }) },
+            { sep: true },
+            { label: "Commit & Push", run: () => commitPush() },
+            { label: "Commit all & Push", run: () => commitPush({ all: true }) },
             { sep: true },
             { label: "Pull", run: () => sync("pull") },
             { label: "Push", run: () => sync("push") },
@@ -413,6 +425,10 @@
     W.showView("scm");
     setTimeout(() => $(".scm-msg")?.focus(), 50);
   }, "Ctrl+Shift+Enter");
+  W.command("git.commitPush", "Git: commit and push", () => {
+    W.showView("scm");
+    setTimeout(() => commitPush(), 50);
+  });
   W.on("folder", () => {
     log = null;
     commitOpen.clear();
