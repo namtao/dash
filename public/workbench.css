@@ -263,6 +263,9 @@ body.resizing iframe, body.resizing .xterm { pointer-events: none; }
 .tree-row:hover { background: var(--wb-hover); }
 .tree-row.sel { background: var(--wb-sel); color: var(--text); }
 .tree-row.dim .fname { opacity: 0.55; }
+/* file / thư mục bị .gitignore: chữ xám, icon mờ như VS Code */
+.tree-row.git-ignored .fname { color: var(--faint); opacity: 0.75; }
+.tree-row.git-ignored .ficon { opacity: 0.45; }
 .twisty { width: 12px; flex: none; font-size: 10px; color: var(--faint); text-align: center; }
 .fname { overflow: hidden; text-overflow: ellipsis; }
 .gmark { margin-left: auto; font: 600 11px var(--mono); }
@@ -359,6 +362,25 @@ body.resizing iframe, body.resizing .xterm { pointer-events: none; }
 .palette li .pd { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--faint); }
 .palette li.sel { background: var(--wb-sel); }
 .palette li.empty { color: var(--faint); cursor: default; }
+.palette li .pl-hl { color: var(--accent-text); font-weight: 700; }
+.palette li .sg-icon { margin-right: -4px; }
+
+/* ô gợi ý dưới ô nhập, kiểu suggest widget của editor (W.attachSuggest) */
+.suggest {
+  position: fixed; inset: auto; margin: 0; padding: 0; width: auto; height: auto; overflow: hidden;
+  background: var(--panel); color: var(--text); border: 1px solid var(--line-2); border-radius: 6px; box-shadow: var(--shadow-lg);
+}
+.suggest ul { list-style: none; margin: 0; padding: 3px 0; max-height: 242px; overflow: auto; }
+.suggest li { display: flex; align-items: center; gap: 7px; height: 24px; padding: 0 10px 0 8px; cursor: pointer; font: 12.5px var(--mono); white-space: nowrap; }
+.suggest li:hover { background: var(--wb-hover); }
+.suggest li.sel { background: var(--wb-sel); box-shadow: inset 2px 0 var(--accent); }
+.suggest .sg-label b { color: var(--accent-text); font-weight: 700; }
+.suggest .sg-badge { font: 600 9.5px/15px var(--sans); text-transform: uppercase; letter-spacing: 0.04em; padding: 0 5px; border-radius: 3px; background: var(--accent-soft); color: var(--accent-text); }
+.suggest .sg-detail { flex: 1; min-width: 0; text-align: right; overflow: hidden; text-overflow: ellipsis; font: 11.5px var(--sans); color: var(--faint); }
+.sg-icon { flex: none; display: inline-flex; width: 16px; height: 16px; align-items: center; justify-content: center; color: var(--accent-text); }
+.sg-icon svg, .sg-icon .ficon { width: 16px; height: 16px; }
+.suggest-foot { display: flex; gap: 12px; padding: 4px 10px; border-top: 1px solid var(--line); font: 11px var(--sans); color: var(--faint); }
+.suggest-foot kbd { font: 10px var(--mono); padding: 0 4px; margin-right: 2px; border: 1px solid var(--line-2); border-radius: 3px; background: var(--wb-input); }
 .ctxmenu {
   position: fixed; z-index: 1100; min-width: 200px; padding: 4px; background: var(--panel);
   border: 1px solid var(--line-2); border-radius: 7px; box-shadow: var(--shadow-lg);

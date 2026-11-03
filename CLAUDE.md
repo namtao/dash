@@ -36,8 +36,9 @@ Dash is a local workspace (terminals, editor, git, Claude Code, databases, proje
 - `/` is `shell.html` (project tabs); each tab is an iframe of `index.html?w=<project id>` with its own
   workbench. Per-window browser state uses `store.get/set` keys listed in `SCOPED` (core.js).
 - Remote folders and projects use paths `ssh://<ssh profile id>/abs/path`. `src/files.js` routes them to
-  `src/remote.js` (ssh exec with ControlMaster, `BatchMode=yes`, so key/agent auth only). Git and Claude
-  only work on local folders; guard new features with `W.isRemote()` / `remote.isRemote()`.
+  `src/remote.js` (ssh exec with ControlMaster, `BatchMode=yes`, so key/agent auth only). `src/git.js` runs
+  git over the same ssh for remote dirs (`root()` returns `ssh://<id>/top`). Claude only works on local
+  folders; guard new features with `W.isRemote()` / `remote.isRemote()`.
 - Remote project commands run through `ssh -tt` in `process-runner.js`; Env / Packages / Auto-detect are
   hidden for remote projects.
 - Port forwards (`src/ssh-forward.js`) are child `ssh -N -L` processes stopped on shutdown.

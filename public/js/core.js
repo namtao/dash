@@ -112,14 +112,132 @@ const W = (() => {
     b.innerHTML = `<span class="fp-icon">${W.isRemote(W.folder) ? "⇄" : "▸"}</span><span>${esc(W.base(W.folder) || "Open folder")}</span><span class="fp-path">${esc(shortPath(W.folder))}</span>`;
   }
 
-  // Hộp chọn thư mục: dự án, thư mục gần đây hoặc gõ đường dẫn
+  // Gợi ý thư mục con theo đường dẫn đang gõ: "~/Pro" → các thư mục trong ~ bắt đầu bằng "Pro".
+  // remote: id hồ sơ SSH khi ô nhập chỉ chứa đường dẫn trên máy đó (không có tiền tố ssh://).
+  // Trả về [{ name, typed, path, project }]: typed giữ dạng người dùng gõ, path là đường dẫn đầy đủ.
+  W.dirSuggester = ({ remote = "" } = {}) => {
+    const cache = new Map();
+    return async (text) => {
+      const t = String(text || "").trim();
+      if (!(remote ? /^\// : /^(~\/|~$|\/|ssh:\/\/[^/]+\/)/).test(t)) return [];
+      const parent = t === "~" ? "~/" : t.slice(0, t.lastIndexOf("/") + 1);
+      const prefix = t === "~" ? "" : t.slice(parent.length).toLowerCase();
+      const base = remote ? `ssh://${remote}${parent}` : parent.startsWith("~/") ? `${W.home}/${parent.slice(2)}` : parent;
+      if (!cache.has(base))
+        cache.set(
+          base,
+          api("GET", `/api/files/list?path=${encodeURIComponent(base)}`)
+            .then((r) => r.items.filter((i) => i.dir && !i.dim).map((i) => i.name))
+            .catch(() => [])
+        );
+      const names = await cache.get(base);
+      const projects = new Map((S.config?.projects || []).map((p) => [p.path.replace(/(.)\/+$/, "$1"), p.name]));
+      return names
+        .filter((n) => n.toLowerCase().startsWith(prefix) && (prefix.startsWith(".") || !n.startsWith(".")))
+        .slice(0, 100)
+        .map((n) => ({ name: n, typed: parent + n, path: base + n, project: projects.get(base + n) || "", hl: prefix.length }));
+    };
+  };
+
+  // Ô gợi ý kiểu suggest widget của editor gắn dưới một <input>: ↑↓ chọn, Tab/Enter điền, Esc đóng,
+  // Ctrl+Space mở lại. source(text) → [{ label, value, detail, icon (html), hl (số ký tự đầu tô đậm), badge }].
+  // Dùng popover nên nổi trên modal và không bị khung có overflow cắt mất.
+  W.attachSuggest = (input, source) => {
+    const box = document.createElement("div");
+    box.className = "suggest";
+    box.popover = "manual";
+    box.innerHTML = `<ul></ul><div class="suggest-foot"><span><kbd>↑</kbd><kbd>↓</kbd> navigate</span><span><kbd>Tab</kbd> accept</span><span><kbd>Esc</kbd> close</span></div>`;
+    (input.closest("dialog") || document.body).append(box);
+    const ul = box.querySelector("ul");
+    let items = [];
+    let sel = 0;
+    let seq = 0;
+    const isOpen = () => box.matches(":popover-open");
+    const close = () => isOpen() && box.hidePopover();
+    const place = () => {
+      const r = input.getBoundingClientRect();
+      const below = innerHeight - r.bottom;
+      box.style.left = `${r.left}px`;
+      box.style.minWidth = `${Math.max(r.width, 320)}px`;
+      box.style.maxWidth = `${Math.max(r.width, 520)}px`;
+      // thiếu chỗ phía dưới thì mở lên trên
+      if (below < 240 && r.top > below) {
+        box.style.top = "auto";
+        box.style.bottom = `${innerHeight - r.top + 3}px`;
+      } else {
+        box.style.bottom = "auto";
+        box.style.top = `${r.bottom + 3}px`;
+      }
+    };
+    const paint = () => {
+      if (!items.length || document.activeElement !== input) return close();
+      ul.innerHTML = items
+        .map((it, i) => {
+          const hl = Math.min(it.hl || 0, it.label.length);
+          return `<li class="${i === sel ? "sel" : ""}" data-i="${i}"><span class="sg-icon">${it.icon || ""}</span><span class="sg-label"><b>${esc(it.label.slice(0, hl))}</b>${esc(it.label.slice(hl))}</span>${it.badge ? `<span class="sg-badge">${esc(it.badge)}</span>` : ""}<span class="sg-detail">${esc(it.detail || "")}</span></li>`;
+        })
+        .join("");
+      if (!isOpen()) box.showPopover();
+      place();
+      ul.querySelector(".sel")?.scrollIntoView({ block: "nearest" });
+    };
+    const refresh = async () => {
+      const my = ++seq;
+      const got = await Promise.resolve(source(input.value)).catch(() => []);
+      if (my !== seq) return;
+      items = got || [];
+      sel = 0;
+      paint();
+    };
+    const accept = (it) => {
+      input.value = it.value;
+      input.setSelectionRange(it.value.length, it.value.length);
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    };
+    input.setAttribute("autocomplete", "off");
+    input.addEventListener("input", refresh);
+    input.addEventListener("focus", refresh);
+    input.addEventListener("blur", () => setTimeout(close, 0));
+    input.addEventListener("keydown", (e) => {
+      if (e.key === " " && e.ctrlKey) {
+        e.preventDefault();
+        return refresh();
+      }
+      if (!isOpen()) return;
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        sel = (sel + (e.key === "ArrowDown" ? 1 : -1) + items.length) % items.length;
+        paint();
+      } else if (e.key === "Tab" || e.key === "Enter") accept(items[sel]);
+      else if (e.key === "Escape") close();
+      else return;
+      // Esc chỉ đóng gợi ý, không đóng modal; Enter điền gợi ý thay vì gửi form
+      e.preventDefault();
+      e.stopPropagation();
+    });
+    // mousedown giữ focus trên ô nhập để gõ tiếp sau khi chọn
+    ul.addEventListener("mousedown", (e) => {
+      const li = e.target.closest("li[data-i]");
+      e.preventDefault();
+      if (li) accept(items[Number(li.dataset.i)]);
+    });
+    return { refresh, close };
+  };
+
+  // Hộp chọn thư mục: dự án, thư mục gần đây hoặc gõ đường dẫn (gợi ý thư mục con, Tab để đi vào)
   W.pickFolder = async () => {
     const recent = store.get("recentFolders", []);
-    const projects = (S.config?.projects || []).map((p) => ({ label: p.name, detail: shortPath(p.path), value: p.path }));
+    const projects = (S.config?.projects || []).map((p) => ({ label: p.name, icon: ICON.projects, detail: shortPath(p.path), value: p.path, hint: "project" }));
     const items = [...projects, ...recent.filter((r) => !projects.some((p) => p.value === r)).map((r) => ({ label: W.base(r), detail: shortPath(r), value: r }))];
-    const picked = await W.quickPick(items, { placeholder: "Pick a project or type an absolute path (e.g. ~/Projects/foo)", allowCustom: true });
+    const dirs = W.dirSuggester();
+    const suggest = async (q) => {
+      const list = (await dirs(q)).map((d) => ({ label: `${d.name}/`, hl: d.hl, icon: W.folderIcon(d.name) || ICON.files, detail: d.project ? `${d.project} · ${shortPath(d.path)}` : shortPath(d.path), value: d.path, complete: `${d.typed}/`, hint: d.project ? "project" : "" }));
+      // gõ xong một thư mục ("~/Projects/") thì Enter mở chính thư mục đó, không phải thư mục con đầu tiên
+      const t = q.trim();
+      return list.length && (t.endsWith("/") || t === "~") ? [{ label: "Open this folder", detail: t, value: t }, ...list] : list;
+    };
+    const picked = await W.quickPick(items, { placeholder: "Pick a project or type a path (e.g. ~/Projects/foo, Tab completes)", allowCustom: true, suggest });
     if (!picked) return;
-    const dir = picked.startsWith("~") ? W.home + picked.slice(1) : picked;
+    const dir = (picked.startsWith("~") ? W.home + picked.slice(1) : picked).replace(/(.)\/+$/, "$1");
     W.setFolder(dir);
     store.set("recentFolders", [dir, ...recent.filter((r) => r !== dir)].slice(0, 15));
   };
@@ -478,13 +596,17 @@ const W = (() => {
 
   // ---------- quick pick / palette ----------
   // items: [{ label, detail, value, hint }]; trả về value hoặc chuỗi đã gõ (allowCustom)
-  W.quickPick = (items, { placeholder = "", allowCustom = false, initial = "" } = {}) =>
+  // suggest(q): hàm async trả thêm mục theo chữ đang gõ (vd thư mục con), hiện trước; mục có "complete"
+  // thì Tab điền chuỗi đó vào ô nhập.
+  W.quickPick = (items, { placeholder = "", allowCustom = false, initial = "", suggest = null } = {}) =>
     new Promise((resolve) => {
       const box = $("#palette");
       const input = $("#palette-input");
       const list = $("#palette-list");
       let sel = 0;
       let shown = [];
+      let extra = [];
+      let seq = 0;
       const prev = document.activeElement;
       box.classList.remove("hidden");
       input.placeholder = placeholder;
@@ -504,19 +626,34 @@ const W = (() => {
       };
       const paint = () => {
         const q = input.value.toLowerCase().trim();
-        shown = items
-          .map((it) => ({ it, s: score(`${it.label} ${it.detail || ""}`, q) }))
-          .filter((x) => x.s > 0)
-          .sort((a, b) => b.s - a.s)
-          .slice(0, 200)
-          .map((x) => x.it);
+        // có gợi ý thì chỉ giữ mục chứa nguyên chuỗi gõ (khớp rải rác theo đường dẫn ra toàn mục lạc)
+        const min = extra.length ? 10 : 1;
+        const own = new Set(extra.map((x) => x.value));
+        shown = [
+          ...extra,
+          ...items
+            .filter((it) => !own.has(it.value))
+            .map((it) => ({ it, s: score(`${it.label} ${it.detail || ""}`, q) }))
+            .filter((x) => x.s >= min)
+            .sort((a, b) => b.s - a.s)
+            .map((x) => x.it),
+        ].slice(0, 200);
         sel = Math.min(sel, Math.max(0, shown.length - 1));
         list.innerHTML =
-          shown.map((it, i) => `<li class="${i === sel ? "sel" : ""}" data-i="${i}"><span class="pl">${esc(it.label)}</span><span class="pd">${esc(it.detail || "")}</span>${it.hint ? `<kbd>${esc(it.hint)}</kbd>` : ""}</li>`).join("") ||
+          shown.map((it, i) => `<li class="${i === sel ? "sel" : ""}" data-i="${i}">${it.icon ? `<span class="sg-icon">${it.icon}</span>` : ""}<span class="pl">${it.hl ? `<b class="pl-hl">${esc(it.label.slice(0, it.hl))}</b>${esc(it.label.slice(it.hl))}` : esc(it.label)}</span><span class="pd">${esc(it.detail || "")}</span>${it.hint ? `<kbd>${esc(it.hint)}</kbd>` : ""}</li>`).join("") ||
           `<li class="empty">${allowCustom && q ? "Press Enter to use what you typed" : "No matches"}</li>`;
         list.querySelector(".sel")?.scrollIntoView({ block: "nearest" });
       };
+      const refresh = async () => {
+        if (!suggest) return;
+        const my = ++seq;
+        const got = await Promise.resolve(suggest(input.value)).catch(() => []);
+        if (my !== seq) return;
+        extra = got || [];
+        paint();
+      };
       const done = (v) => {
+        seq++;
         box.classList.add("hidden");
         input.oninput = input.onkeydown = list.onmousedown = null;
         document.removeEventListener("mousedown", outside, true);
@@ -527,11 +664,17 @@ const W = (() => {
       input.oninput = () => {
         sel = 0;
         paint();
+        refresh();
       };
       input.onkeydown = (e) => {
         if (e.key === "ArrowDown") sel = Math.min(sel + 1, shown.length - 1);
         else if (e.key === "ArrowUp") sel = Math.max(sel - 1, 0);
         else if (e.key === "Escape") return done(null);
+        else if (e.key === "Tab" && shown[sel]?.complete) {
+          input.value = shown[sel].complete;
+          sel = 0;
+          refresh();
+        } else if (e.key === "Tab" && suggest) e.preventDefault();
         else if (e.key === "Enter") return done(shown[sel] ? shown[sel].value : allowCustom && input.value.trim() ? input.value.trim() : null);
         else return;
         e.preventDefault();
@@ -546,6 +689,7 @@ const W = (() => {
       };
       document.addEventListener("mousedown", outside, true);
       paint();
+      refresh();
       input.focus();
       input.select();
     });

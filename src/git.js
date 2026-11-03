@@ -1,36 +1,58 @@
 // Git cho màn Source Control: trạng thái, nội dung hai phía để so sánh (diff editor), stage/unstage,
-// bỏ thay đổi, commit, pull/push, lịch sử commit.
+// bỏ thay đổi, commit, pull/push, lịch sử commit. Thư mục ssh://<id>/... chạy git trên máy đó qua ssh
+// (cùng ControlMaster với Explorer); push/pull dùng khoá git của máy từ xa.
 const fs = require("fs");
 const path = require("path");
 const { execFile } = require("child_process");
+const remote = require("./remote");
+const sshProfiles = require("./ssh-profiles");
 
 function git(cwd, args, { input, allowFail = false, timeout = 60000 } = {}) {
   return new Promise((resolve, reject) => {
-    const child = execFile("git", args, { cwd, timeout, maxBuffer: 64 * 1024 * 1024, env: { ...process.env, GIT_TERMINAL_PROMPT: "0", LC_ALL: "C" } }, (err, stdout, stderr) => {
+    const done = (err, stdout, stderr) => {
       if (err && !allowFail) return reject(Object.assign(new Error(String(stderr || err.message).trim()), { status: 400 }));
       resolve({ ok: !err, stdout: String(stdout), stderr: String(stderr) });
-    });
+    };
+    const opts = { timeout, maxBuffer: 64 * 1024 * 1024 };
+    let child;
+    if (remote.isRemote(cwd)) {
+      const { profile, dir } = remote.parse(cwd);
+      const q = sshProfiles.shellQuote;
+      const cmd = `cd ${q(dir)} && LC_ALL=C GIT_TERMINAL_PROMPT=0 git ${args.map(q).join(" ")}`;
+      child = execFile("ssh", sshProfiles.execArgs(profile, cmd), opts, done);
+    } else child = execFile("git", args, { ...opts, cwd, env: { ...process.env, GIT_TERMINAL_PROMPT: "0", LC_ALL: "C" } }, done);
     if (input != null) child.stdin.end(input);
   });
 }
 
+// Gốc repo; với thư mục từ xa trả về dạng ssh://<id>/gốc để các bước sau vẫn chạy trên máy đó
 async function root(dir) {
-  if (String(dir || "").startsWith("ssh://")) throw Object.assign(new Error("Source Control works on local folders only"), { status: 404 });
   const r = await git(dir, ["rev-parse", "--show-toplevel"], { allowFail: true });
-  if (!r.ok) throw Object.assign(new Error("Not a git repository"), { status: 404 });
-  return r.stdout.trim();
+  if (!r.ok) {
+    // lỗi ssh (mất kết nối, sai khoá) khác với "không phải repo"
+    if (remote.isRemote(dir) && !/not a git repository/i.test(r.stderr)) throw Object.assign(new Error(r.stderr.trim().split("\n").pop() || "SSH error"), { status: 400 });
+    throw Object.assign(new Error("Not a git repository"), { status: 404 });
+  }
+  const top = r.stdout.trim();
+  return remote.isRemote(dir) ? `ssh://${remote.parse(dir).id}${top}` : top;
 }
+
+// Đường dẫn trên đĩa (bỏ tiền tố ssh://<id>) để tính đường dẫn tương đối trong repo
+const diskPath = (p) => String(p).replace(/^ssh:\/\/[^/]+/, "");
+const relTo = (top, p) => (remote.isRemote(p) || path.isAbsolute(p) ? path.posix.relative(diskPath(top), diskPath(p)) : p);
+const inRepo = (top, rel) => (remote.isRemote(top) ? `${top}/${rel}` : path.join(top, rel));
 
 const LABELS = { M: "modified", A: "added", D: "deleted", R: "renamed", C: "copied", U: "conflict", T: "type changed", "?": "untracked" };
 
 async function status(dir) {
   const top = await root(dir);
   const [st, head] = await Promise.all([
-    git(top, ["status", "--porcelain=v1", "-z", "-b", "--untracked-files=all"]),
+    // --ignored=matching: thư mục bị ignore chỉ hiện một dòng (không liệt kê từng file bên trong)
+    git(top, ["status", "--porcelain=v1", "-z", "-b", "--untracked-files=all", "--ignored=matching"]),
     git(top, ["rev-parse", "--verify", "-q", "HEAD"], { allowFail: true }),
   ]);
   const parts = st.stdout.split("\0");
-  const out = { root: top, branch: "", upstream: "", ahead: 0, behind: 0, hasHead: head.ok, head: head.ok ? head.stdout.trim() : "", staged: [], changes: [], conflicts: [] };
+  const out = { root: top, branch: "", upstream: "", ahead: 0, behind: 0, hasHead: head.ok, head: head.ok ? head.stdout.trim() : "", staged: [], changes: [], conflicts: [], ignored: [] };
   for (let i = 0; i < parts.length; i++) {
     const rec = parts[i];
     if (!rec) continue;
@@ -51,6 +73,10 @@ async function status(dir) {
       out.conflicts.push({ path: file, status: "U", label: "conflict" });
       continue;
     }
+    if (x === "!") {
+      out.ignored.push(file.replace(/\/$/, ""));
+      continue;
+    }
     if (x === "?") {
       out.changes.push({ path: file, status: "U", label: "untracked", untracked: true });
       continue;
@@ -66,7 +92,11 @@ async function show(top, spec) {
   return r.ok ? r.stdout : "";
 }
 
-function readWorking(top, file) {
+async function readWorking(top, file) {
+  if (remote.isRemote(top)) {
+    const r = await remote.read(inRepo(top, file)).catch(() => null);
+    return !r ? "" : r.binary || r.tooLarge ? null : r.content;
+  }
   try {
     const buf = fs.readFileSync(path.join(top, file));
     return buf.includes(0) ? null : buf.toString("utf8");
@@ -79,7 +109,7 @@ function readWorking(top, file) {
 // mode: "working" (index ↔ thư mục làm việc), "staged" (HEAD ↔ index), "commit" (commit^ ↔ commit).
 async function diffPair(dir, file, mode = "working", commit = "") {
   const top = await root(dir);
-  const rel = path.isAbsolute(file) ? path.relative(top, file) : file;
+  const rel = relTo(top, file);
   let original;
   let modified;
   if (mode === "staged") {
@@ -92,12 +122,12 @@ async function diffPair(dir, file, mode = "working", commit = "") {
   } else {
     const idx = await git(top, ["show", `:${rel}`], { allowFail: true });
     original = idx.ok ? idx.stdout : await show(top, `HEAD:${rel}`);
-    modified = readWorking(top, rel);
+    modified = await readWorking(top, rel);
   }
   return { root: top, path: rel, original, modified, binary: modified === null };
 }
 
-const relPaths = (top, paths) => (Array.isArray(paths) ? paths : [paths]).map((p) => (path.isAbsolute(p) ? path.relative(top, p) : p)).filter(Boolean);
+const relPaths = (top, paths) => (Array.isArray(paths) ? paths : [paths]).map((p) => relTo(top, p)).filter(Boolean);
 
 async function stage(dir, paths) {
   const top = await root(dir);
@@ -120,7 +150,8 @@ async function discard(dir, paths) {
   const st = await status(top);
   for (const rel of relPaths(top, paths)) {
     const untracked = st.changes.find((c) => c.path === rel && c.untracked);
-    if (untracked) fs.rmSync(path.join(top, rel), { recursive: true, force: true });
+    if (untracked && remote.isRemote(top)) await remote.remove(inRepo(top, rel));
+    else if (untracked) fs.rmSync(path.join(top, rel), { recursive: true, force: true });
     else await git(top, ["checkout", "--", rel]);
   }
   return { ok: true };
@@ -210,5 +241,13 @@ async function checkout(dir, branch, create = false) {
   return { ok: true, output: (r.stdout + r.stderr).trim() };
 }
 
+// Tóm tắt cho trang dự án (cùng dạng system-tools.gitInfo): nhánh, số thay đổi, ahead/behind, commit cuối
+async function summary(dir) {
+  const st = await status(dir);
+  const [last] = await log(st.root, 1);
+  return { branch: st.branch, changes: st.staged.length + st.changes.length + st.conflicts.length, ahead: st.ahead, behind: st.behind, last: last ? `${last.short} ${last.subject}` : "" };
+}
+
 module.exports = {
+  summary,
   diffForMessage, status, diffPair, stage, unstage, discard, commit, sync, log, commitFiles, branches, checkout, root };

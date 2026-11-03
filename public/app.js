@@ -1234,9 +1234,17 @@ function addProjectModal(prefillPath) {
     true
   );
   const form = $("#detect-form", m);
+  // Gợi ý thư mục con theo đường dẫn đang gõ (trên máy này hoặc máy SSH đang chọn); thư mục đã là dự án có ghi chú
+  let dirs = W.dirSuggester();
+  const suggest = W.attachSuggest(form.path, async (text) =>
+    (await dirs(text)).map((d) => ({ label: d.name, hl: d.hl, value: `${d.typed}/`, icon: W.folderIcon(d.name) || W.ICON.files, badge: d.project ? "project" : "", detail: d.project ? `Already added: ${d.project}` : "" }))
+  );
   form.where.onchange = () => {
     const prof = ssh.find((p) => p.id === form.where.value);
     form.path.value = prof ? prof.remoteDir || "/home/" + (prof.user || "") : root + "/";
+    dirs = W.dirSuggester({ remote: form.where.value });
+    form.path.focus();
+    suggest.refresh();
     $(".detect-help", m).innerHTML = prof
       ? `Project on <b>${esc(prof.label)}</b>: enter the absolute path on that machine. Commands run there over SSH (key or ssh-agent login), and Files opens the remote folder.`
       : `Enter an absolute path and click <b>Detect</b>. Dash guesses the framework, the env and the run commands.`;
@@ -1245,8 +1253,11 @@ function addProjectModal(prefillPath) {
     e.preventDefault();
     const box = $("#detect-result", m);
     box.innerHTML = `<div class="empty"><span class="spinner"></span></div>`;
-    if (form.where.value) return remoteProjectForm(m, box, form.where.value, form.path.value.trim());
-    const d = await guarded(() => api("POST", "/api/detect", { path: form.path.value.trim() }));
+    // gợi ý chèn "/" cuối để gõ tiếp; "~" chỉ có nghĩa trên máy này
+    const typed = form.path.value.trim().replace(/(.)\/+$/, "$1");
+    if (form.where.value) return remoteProjectForm(m, box, form.where.value, typed);
+    const local = typed === "~" || typed.startsWith("~/") ? W.home + typed.slice(1) : typed;
+    const d = await guarded(() => api("POST", "/api/detect", { path: local }));
     if (!d) return (box.innerHTML = "");
     box.innerHTML = `<form id="new-project-form">
       <div class="form">

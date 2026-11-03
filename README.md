@@ -78,7 +78,7 @@ The **current folder** is shared within a window: Explorer, Source Control, Hist
 - Profiles have a label, host, user, port, an optional identity file, a remote folder to open and extra ssh arguments. They are saved in `projects.json`.
 - Each profile shows a ROOT / LAN / VPN / CLOUD / WAN tag, as WezTerm does.
 - Double-click a profile or press **Alt+S** to connect in a new terminal tab.
-- **Open folder** shows a folder of that machine in the Explorer (`ssh://<profile>/path`). Files open, save, rename and delete over SSH, and new terminals start in that folder. Source Control and Claude work on local folders only.
+- **Open folder** shows a folder of that machine in the Explorer (`ssh://<profile>/path`). Files open, save, rename and delete over SSH, and new terminals start in that folder. Source Control runs git on that machine over SSH (pull/push use its git credentials); Claude works on local folders only.
 - **Port forwarding** runs `ssh -N -L 127.0.0.1:<local>:<host>:<remote>`. Forwards can be saved in the profile and started or stopped with one click; running forwards are listed under the profile, and they stop when Dash stops.
 - Passwords are not stored. Terminals can ask for one, but folders, remote projects and port forwards need a key or ssh-agent (they run ssh with `BatchMode=yes`).
 

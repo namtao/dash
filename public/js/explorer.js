@@ -7,6 +7,8 @@
   let root = null;
   let selected = null;
   let gitMarks = new Map(); // đường dẫn tuyệt đối -> chữ trạng thái git
+  let gitIgnored = new Set(); // đường dẫn tuyệt đối bị .gitignore (thư mục ignore chỉ có một mục)
+  let gitRoot = "";
 
   const saveOpen = () => store.set("explorerOpen", [...open].slice(-300));
   const join = (a, b) => `${a.replace(/\/+$/, "")}/${b}`;
@@ -17,6 +19,13 @@
     cache.set(dir, r.items);
     return r.items;
   }
+
+  // Bị ignore khi chính nó hoặc một thư mục cha trong repo bị ignore (như VS Code tô mờ cả nhánh)
+  const isIgnored = (full) => {
+    if (!gitIgnored.size || !full.startsWith(gitRoot + "/")) return false;
+    for (let p = full; p.length > gitRoot.length; p = p.slice(0, p.lastIndexOf("/"))) if (gitIgnored.has(p)) return true;
+    return false;
+  };
 
   async function renderDir(dir, depth) {
     let items;
@@ -30,7 +39,7 @@
       const full = join(dir, it.name);
       const isOpen = it.dir && open.has(full);
       const mark = gitMarks.get(full) || (it.dir && [...gitMarks.keys()].some((k) => k.startsWith(full + "/")) ? "•" : "");
-      html += `<div class="tree-row ${it.dir ? "dir" : "file"} ${it.dim ? "dim" : ""} ${selected === full ? "sel" : ""} ${mark ? `git-${mark === "•" ? "dot" : mark}` : ""}" data-path="${esc(full)}" data-dir="${it.dir ? 1 : 0}" style="padding-left:${8 + depth * 12}px" draggable="true">
+      html += `<div class="tree-row ${it.dir ? "dir" : "file"} ${it.dim ? "dim" : ""} ${isIgnored(full) ? "git-ignored" : ""} ${selected === full ? "sel" : ""} ${mark ? `git-${mark === "•" ? "dot" : mark}` : ""}" data-path="${esc(full)}" data-dir="${it.dir ? 1 : 0}" style="padding-left:${8 + depth * 12}px" draggable="true">
         <span class="twisty">${it.dir ? (isOpen ? "▾" : "▸") : ""}</span>${it.dir ? W.folderIcon(it.name, isOpen) : W.fileIcon(it.name)}<span class="fname">${esc(it.name)}</span>${mark ? `<span class="gmark">${mark === "•" ? "•" : mark}</span>` : ""}</div>`;
       if (isOpen) html += await renderDir(full, depth + 1);
     }
@@ -49,9 +58,13 @@
 
   async function refreshGit() {
     gitMarks = new Map();
+    gitIgnored = new Set();
+    gitRoot = "";
     try {
       const s = await api("GET", `/api/git/status?dir=${encodeURIComponent(W.folder)}`);
       for (const c of [...s.staged, ...s.changes, ...s.conflicts]) gitMarks.set(join(s.root, c.path), c.status === "?" ? "U" : c.status);
+      gitRoot = s.root.replace(/\/+$/, "");
+      gitIgnored = new Set((s.ignored || []).map((p) => join(gitRoot, p)));
     } catch {}
   }
 

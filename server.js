@@ -152,7 +152,10 @@ route("GET", "/api/status", async () => {
 
 route("GET", "/api/projects/:id/info", async (req, { id }) => {
   const project = store.getProject(id);
-  if (remote.isRemote(project.path)) return { remote: true, exists: await remote.exists(project.path), git: null, env: { exists: false }, manifests: [] };
+  if (remote.isRemote(project.path)) {
+    const exists = await remote.exists(project.path);
+    return { remote: true, exists, git: exists ? await git.summary(project.path).catch(() => null) : null, env: { exists: false }, manifests: [] };
+  }
   const [git, env] = await Promise.all([system.gitInfo(project.path), pyenv.status(project)]);
   return { exists: fs.existsSync(project.path), git, env, manifests: packages.manifests(project) };
 });
