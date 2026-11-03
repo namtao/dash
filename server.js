@@ -29,6 +29,7 @@ const { WebSocketServer } = require("ws");
 const PUBLIC_DIR = path.join(__dirname, "public");
 const MIME = {
   ".html": "text/html; charset=utf-8",
+  ".htm": "text/html; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
   ".mjs": "text/javascript; charset=utf-8",
   ".css": "text/css; charset=utf-8",
@@ -36,6 +37,13 @@ const MIME = {
   ".json": "application/json",
   ".ttf": "font/ttf",
   ".woff2": "font/woff2",
+  ".woff": "font/woff",
+  ".otf": "font/otf",
+  ".mp4": "video/mp4",
+  ".webm": "video/webm",
+  ".mp3": "audio/mpeg",
+  ".wav": "audio/wav",
+  ".ogg": "audio/ogg",
   ".png": "image/png",
   ".jpg": "image/jpeg",
   ".jpeg": "image/jpeg",
@@ -282,15 +290,27 @@ route("DELETE", "/api/history", async (req) => {
 // ---------- File ----------
 route("GET", "/api/files/list", (req, p, url) => files.list(url.searchParams.get("path"), { showHidden: url.searchParams.get("hidden") !== "0" }));
 route("GET", "/api/files/read", (req, p, url) => files.read(url.searchParams.get("path")));
-route("GET", "/api/files/raw", async (req, p, url, res) => {
-  const file = url.searchParams.get("path");
+async function sendRaw(res, file, csp) {
   const buf = await files.raw(file);
   const ext = path.extname(file).toLowerCase();
   const headers = { "Content-Type": MIME[ext] || "application/octet-stream", "Content-Length": buf.length, "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" };
-  // File của người dùng không được chạy script trong origin của Dash (trừ PDF: trình xem PDF không chạy trong sandbox)
-  if (ext !== ".pdf") headers["Content-Security-Policy"] = "sandbox; default-src 'none'; img-src data: 'self'; style-src 'unsafe-inline'";
+  if (csp) headers["Content-Security-Policy"] = csp;
   res.writeHead(200, headers);
   res.end(buf);
+}
+route("GET", "/api/files/raw", async (req, p, url, res) => {
+  const file = url.searchParams.get("path");
+  // File của người dùng không được chạy script trong origin của Dash (trừ PDF: trình xem PDF không chạy trong sandbox)
+  await sendRaw(res, file, path.extname(file).toLowerCase() === ".pdf" ? "" : "sandbox; default-src 'none'; img-src data: 'self'; style-src 'unsafe-inline'");
+});
+// Xem trước trang HTML: đường dẫn nằm trong URL (không phải query) để CSS / JS / ảnh / link tương đối của trang tự trỏ
+// đúng file. /api/files/view/local/<abs> hoặc /api/files/view/ssh/<profile id>/<abs>. Trang chạy trong sandbox không có
+// allow-same-origin (origin rỗng) nên script của nó không chạm được vào Dash; không gửi CORS để origin rỗng không đọc được file.
+route("GET", "/api/files/view/.+", async (req, p, url, res) => {
+  const m = url.pathname.match(/^\/api\/files\/view\/(?:local|ssh\/([^/]+))(\/.*)$/);
+  if (!m) throw httpError(404, "Not found");
+  const rest = decodeURIComponent(m[2]);
+  await sendRaw(res, m[1] ? `ssh://${decodeURIComponent(m[1])}${rest}` : rest, "sandbox allow-scripts allow-forms allow-popups");
 });
 route("GET", "/api/files/tree", (req, p, url) => files.tree(url.searchParams.get("path")));
 route("GET", "/api/files/index", (req, p, url) => files.index(url.searchParams.get("root")));

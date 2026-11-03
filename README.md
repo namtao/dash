@@ -91,7 +91,7 @@ The **current folder** is shared within a window: Explorer, Source Control, Hist
 - File and folder icons come from **Atom Material Icons** (the `a-file-icon-vscode` VS Code icon theme, MIT license), copied into `public/icons/atom/`. Run `node scripts/sync-icons.js` to refresh them from the installed VS Code extension.
 - **Ctrl+P** opens a file by name.
 - Files open in Monaco (the VS Code editor). **Auto save** is on by default (1 s after you stop typing; change it in Settings). Ctrl+S saves too. If the file changed on disk since you opened it, Dash asks before overwriting, and auto save pauses for that file.
-- **Viewers**: images, PDF, CSV/TSV (as a table), Word `.docx` and Excel `.xlsx` (one tab per sheet). CSV and SVG can also be edited as text. Markdown files have a live **Preview** beside the editor (Ctrl+Shift+V). HTML from Markdown and Word files is sanitized.
+- **Viewers**: images, PDF, CSV/TSV (as a table), Word `.docx` and Excel `.xlsx` (one tab per sheet). CSV and SVG can also be edited as text. Markdown and HTML files have a live **Preview** beside the editor (Ctrl+Shift+V). HTML from Markdown and Word files is sanitized; HTML pages run in a sandboxed frame with no access to Dash, and their relative CSS, JS and images load from the file's folder.
 - **Format** (Shift+Alt+F): built in for JSON, CSS, HTML, JavaScript and TypeScript; prettier for YAML, Markdown, GraphQL, SCSS and Less; sql-formatter for SQL; and, when installed, ruff or black (Python), shfmt (shell), gofmt, rustfmt, clang-format, stylua and taplo.
 - **Problems**: JavaScript and TypeScript are type-checked as in VS Code (undefined names, wrong types, wrong arguments; missing modules are ignored because the editor does not read `node_modules`), and JSON, CSS and HTML are validated. Python is checked for syntax errors, undefined names and unused imports with the standard library (`src/python-check.py`); shell with `bash -n`, YAML with prettier's parser, Go with `gofmt -e`. When ruff, shellcheck or yamllint are installed (e.g. `sudo pacman -S ruff shellcheck yamllint`), Dash uses them instead for many more rules. Errors are underlined in the editor, and the **Problems** tab in the bottom panel (Ctrl+Shift+M, or click the ⊗ ⚠ counter in the status bar) lists them for every open file; click one to jump to its line and column. F8 jumps to the next problem.
 - **Read-only**: the lock in the editor bar, the status bar or the Explorer menu makes a file read-only, as the VS Code "read-only" extensions do. Dash remembers it per file.
@@ -180,7 +180,7 @@ In **Keyboard shortcuts** (Ctrl+Shift+H), click a shortcut and press new keys. S
 | New SQL query | Ctrl+Alt+Q |
 | Saved commands picker | Alt+Q |
 | Local AI chat / AI commit message | Ctrl+Alt+I / Ctrl+Alt+M |
-| Markdown preview, Problems panel, next problem | Ctrl+Shift+V, Ctrl+Shift+M, F8 |
+| Markdown / HTML preview, Problems panel, next problem | Ctrl+Shift+V, Ctrl+Shift+M, F8 |
 
 When a terminal has focus, the shell keeps Ctrl+P, Ctrl+B, Ctrl+J, Ctrl+K and Ctrl+S, so those workbench shortcuts work only outside the terminal. Browsers do not let pages use Ctrl+T, Ctrl+W, Ctrl+N or Ctrl+Tab.
 

@@ -184,6 +184,12 @@
   const fmtSize = (n) => (n == null ? "" : n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1024).toFixed(1)} KB` : `${(n / 1048576).toFixed(1)} MB`);
   const rawUrl = (p) => `/api/files/raw?path=${encodeURIComponent(p)}`;
   const dirOf = (p) => p.slice(0, p.lastIndexOf("/")) || "/";
+  // URL xem trước HTML theo đường dẫn (route /api/files/view trong server.js), để đường dẫn tương đối trong trang tự đúng
+  const viewUrl = (p) => {
+    const enc = (s) => s.split("/").map(encodeURIComponent).join("/");
+    const m = p.match(/^ssh:\/\/([^/]+)(\/.*)$/);
+    return `/api/files/view/${m ? `ssh/${encodeURIComponent(m[1])}${enc(m[2])}` : `local${enc(p)}`}`;
+  };
 
   // Nạp thư viện của trình xem khi cần (chỉ một lần). Loader AMD của Monaco đặt define.amd, khiến thư viện UMD
   // tự đăng ký thành module AMD thay vì biến toàn cục (marked, DOMPurify…), nên tạm ẩn define.amd khi nạp.
@@ -510,18 +516,22 @@
   function createEditor(host, tab, p) {
     host.classList.add("code-host");
     const isMd = /\.(md|markdown|mdx)$/i.test(p);
+    const isHtml = /\.html?$/i.test(p);
+    const previewKey = isMd ? "mdPreview" : "htmlPreview";
+    // Trang HTML chạy trong iframe sandbox không có allow-same-origin: script của trang không chạm được vào Dash
+    const previewEl = isHtml ? `<iframe class="html-preview hidden" sandbox="allow-scripts allow-forms allow-popups" referrerpolicy="no-referrer" title="HTML preview"></iframe>` : `<div class="md-preview md-body hidden"></div>`;
     host.innerHTML = `<div class="crumbs"><span class="crumb-path">${esc(W.shortPath(p))}</span><span class="crumb-actions">
-        ${isMd ? `<button class="btn sm ghost" data-e="preview" title="Toggle Markdown preview (${esc(W.keyFor("markdown.preview") || "")})">Preview</button>` : ""}
+        ${isMd || isHtml ? `<button class="btn sm ghost" data-e="preview" title="Toggle ${isMd ? "Markdown" : "HTML"} preview (${esc(W.keyFor("markdown.preview") || "")})">Preview</button>` : ""}
         <button class="btn sm ghost" data-e="format" title="Format document (Shift+Alt+F)">Format</button>
         <button class="btn sm ghost ro-btn" data-e="ro" title="Toggle read-only">${W.ICON.lock}</button></span></div>
-      <div class="code-split"><div class="code-editor"><div class="loading"><span class="spinner"></span></div></div><div class="md-preview md-body hidden"></div></div>`;
+      <div class="code-split"><div class="code-editor"><div class="loading"><span class="spinner"></span></div></div>${previewEl}</div>`;
     const st = { editor: null, model: null, saved: "", mtime: 0, size: null, disposed: false, readonly: isReadonly(p), preview: false, autoTimer: 0, lintTimer: 0, previewTimer: 0, autoBlocked: false };
     const paintRo = () => {
       $(".ro-btn", host).classList.toggle("on", st.readonly);
       st.editor?.updateOptions({ readOnly: st.readonly });
       paintFileStatus();
     };
-    const preview = $(".md-preview", host);
+    const preview = $(".md-preview, .html-preview", host);
     // ----- đồng bộ cuộn editor <-> preview: neo theo data-line của từng khối, nội suy tuyến tính giữa hai neo.
     // mute chặn vòng lặp: cuộn do code gây ra ở một bên không được đẩy ngược lại bên kia.
     const mute = { editor: 0, preview: 0 };
@@ -558,7 +568,7 @@
       return n + (y1 > y0 ? Math.min(1, Math.max(0, (top - y0) / (y1 - y0))) : 0);
     };
     const syncPreview = () => {
-      if (!st.preview || !st.editor || performance.now() < mute.editor) return;
+      if (!isMd || !st.preview || !st.editor || performance.now() < mute.editor) return;
       const ed = st.editor;
       const top = ed.getScrollTop();
       const atEnd = top > 0 && top + ed.getLayoutInfo().height >= ed.getScrollHeight() - 2;
@@ -566,7 +576,7 @@
       preview.scrollTop = atEnd ? preview.scrollHeight : mapScroll("line", "top", editorLine());
     };
     const syncEditor = () => {
-      if (!st.preview || !st.editor || performance.now() < mute.preview) return;
+      if (!isMd || !st.preview || !st.editor || performance.now() < mute.preview) return;
       const ed = st.editor;
       const top = preview.scrollTop;
       const atEnd = top > 0 && top >= preview.scrollHeight - preview.clientHeight - 2;
@@ -589,6 +599,12 @@
     previewResize.observe(preview);
     const paintPreview = async () => {
       if (!st.preview || !st.model) return;
+      if (isHtml) {
+        // nội dung đang sửa (chưa lưu cũng được); <base> đặt sau DOCTYPE để không rơi vào quirks mode
+        const base = `<base href="${viewUrl(p).replace(/[^/]*$/, "")}">`;
+        preview.srcdoc = st.model.getValue().replace(/^(\s*<!doctype[^>]*>)?/i, (d) => d + base);
+        return;
+      }
       mute.preview = Infinity; // dựng lại HTML có thể đổi scrollTop của preview, không đẩy ngược sang editor
       try {
         await renderMarkdown(preview, st.model.getValue(), p);
@@ -654,7 +670,7 @@
       st.editor.onDidChangeCursorSelection(() => W.active?.inst === inst && paintFileStatus());
       paintRo();
       lintModel(st, p);
-      if (isMd && store.get("mdPreview", false)) inst.togglePreview();
+      if ((isMd || isHtml) && store.get(previewKey, false)) inst.togglePreview();
       st.editor.focus();
     })();
     host.addEventListener("click", (e) => {
@@ -681,9 +697,9 @@
         toast(st.readonly ? `${W.base(p)} is read-only` : `${W.base(p)} is editable`, "ok", 1200);
       },
       togglePreview() {
-        if (!isMd) return;
+        if (!isMd && !isHtml) return;
         st.preview = !st.preview;
-        store.set("mdPreview", st.preview);
+        store.set(previewKey, st.preview);
         preview.classList.toggle("hidden", !st.preview);
         host.classList.toggle("with-preview", st.preview);
         $("[data-e=preview]", host)?.classList.toggle("on", st.preview);
@@ -902,7 +918,7 @@
   const activeFile = () => (W.active?.persist?.kind === "file" ? W.active.inst : null);
   W.command("file.toggleReadonly", "File: toggle read-only", () => activeFile()?.toggleReadonly?.(), "");
   W.command("file.format", "File: format document", () => activeFile()?.format?.(), "Shift+Alt+F", { when: () => W.notTerm() && W.active?.persist?.kind === "file" });
-  W.command("markdown.preview", "Markdown: toggle preview", () => activeFile()?.togglePreview?.(), "Ctrl+Shift+V", { when: W.notTerm });
+  W.command("markdown.preview", "Toggle Markdown / HTML preview", () => activeFile()?.togglePreview?.(), "Ctrl+Shift+V", { when: W.notTerm });
   W.command("editor.nextProblem", "File: go to next problem", () => activeFile()?.editor?.()?.getAction("editor.action.marker.next")?.run(), "F8", { when: W.notTerm });
   W.on("folder", () => {
     cache.clear();

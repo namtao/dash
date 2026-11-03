@@ -634,6 +634,7 @@ textarea.cell-input { min-height: 80px; position: relative; z-index: 4; }
 .ro-btn.on { color: var(--amber-text) !important; background: var(--amber-soft) !important; }
 .code-split { flex: 1; min-height: 0; display: flex; }
 .code-split .code-editor { flex: 1; min-width: 0; }
+.html-preview { flex: 1; min-width: 0; border: 0; border-left: 1px solid var(--wb-border); background: #fff; }
 .md-preview { flex: 1; min-width: 0; overflow: auto; overflow-anchor: none; padding: 16px 24px 60px; border-left: 1px solid var(--wb-border); background: var(--wb-editor); }
 .md-body { line-height: 1.6; font-size: 14px; color: var(--text); overflow-wrap: anywhere; }
 .md-body h1, .md-body h2 { border-bottom: 1px solid var(--line); padding-bottom: 4px; margin: 18px 0 10px; }
@@ -725,7 +726,7 @@ textarea.cell-input { min-height: 80px; position: relative; z-index: 4; }
   .setting { flex-direction: column; align-items: stretch; gap: 6px; }
   .setting-input input:not([type="checkbox"]), .setting-input select { width: 100%; }
   .code-split.with-preview, .with-preview .code-split { flex-direction: column; }
-  .with-preview .md-preview { border-left: 0; border-top: 1px solid var(--wb-border); }
+  .with-preview .md-preview, .with-preview .html-preview { border-left: 0; border-top: 1px solid var(--wb-border); }
   .phead { flex-direction: column; align-items: stretch; gap: 10px; }
   .ph-meta { flex-wrap: wrap; }
   /* inline-flex bỏ qua text-overflow, nên chuyển sang inline-block để có dấu … */
