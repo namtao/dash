@@ -13,6 +13,7 @@ const system = require("./src/system-tools");
 const terminals = require("./src/terminals");
 const history = require("./src/history");
 const files = require("./src/files");
+const search = require("./src/search");
 const git = require("./src/git");
 const sshProfiles = require("./src/ssh-profiles");
 const claude = require("./src/claude");
@@ -314,6 +315,15 @@ route("GET", "/api/files/view/.+", async (req, p, url, res) => {
 });
 route("GET", "/api/files/tree", (req, p, url) => files.tree(url.searchParams.get("path")));
 route("GET", "/api/files/index", (req, p, url) => files.index(url.searchParams.get("root")));
+// Tìm trong thư mục (POST vì có nhiều tuỳ chọn); trình duyệt huỷ yêu cầu thì dừng luôn công cụ đang chạy
+route("POST", "/api/files/search", async (req, p, url, res) => {
+  const b = await readBody(req);
+  return search.search(b.root, b, res);
+});
+route("POST", "/api/files/replace", async (req) => {
+  const b = await readBody(req);
+  return search.replace(b.root, b);
+});
 route("PUT", "/api/files/write", async (req) => {
   const b = await readBody(req);
   return files.write(b.path, b.content, { mtime: b.mtime, force: b.force });

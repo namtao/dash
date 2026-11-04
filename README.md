@@ -49,7 +49,7 @@ Install Dash as an app from the browser menu (**Install** / **Open as window**) 
 | Area | Contents |
 |------|----------|
 | Title bar | Project tabs, current folder (click to switch: project, recent folder or any path), Go to file / commands, toggles for side bar, panel and Claude, theme |
-| Activity bar (left) | Projects, Explorer, Source Control, Terminals, SSH, Saved commands, Database, Claude, Local AI, Settings |
+| Activity bar (left) | Projects, Explorer, Search, Source Control, Terminals, SSH, Saved commands, Database, Claude, Local AI, Settings |
 | Editor tabs | Overview / project details, files, diffs, SQL queries, Settings. Tabs reopen after a reload, can be reordered by dragging and closed with a middle click. Unsaved tabs show ● and ask before closing. |
 | Panel (bottom) | Terminal, Problems, History, Output (backup/restore logs). Hidden when the page opens; it appears when you open a terminal. |
 | Claude (right) | Claude Code conversations |
@@ -97,6 +97,14 @@ The **current folder** is shared within a window: Explorer, Source Control, Hist
 - **Read-only**: the lock in the editor bar, the status bar or the Explorer menu makes a file read-only, as the VS Code "read-only" extensions do. Dash remembers it per file.
 - The status bar shows the size of the open file.
 - **Generate file tree** (Explorer menu on a folder) produces a text tree you can copy, leaving out `.git`, `node_modules` and similar folders.
+
+### Search
+- **Ctrl+Shift+F** searches the text of every file in the current folder, as in VS Code (inside a terminal the same key still opens the terminal's find box). Text selected in the editor fills the search box.
+- Toggles for **Match case** (Alt+C), **Whole word** (Alt+W) and **Regular expression** (Alt+R). Under **⋯**: files to include / exclude (comma-separated globs such as `*.ts, src/**`) and a switch to use `.gitignore` and skip `node_modules`.
+- Results are grouped by file. Click a result (or Enter, F4 / Shift+F4 for the next / previous one) to open the file with the match selected. Arrow keys move through the list, Delete dismisses a result.
+- **Replace** (▸ next to the search box): previews each change, then replaces one result, one file or everything (Ctrl+Alt+Enter, with a confirmation). In regex mode the replacement understands `$1`, `$<name>`, `$&`, `\n` and `\t`. Files open with unsaved changes are skipped; open files without changes reload in place, so Ctrl+Z still undoes the replace.
+- Explorer menu on a folder: **Find in folder…** limits the search to that folder.
+- Uses `rg` (ripgrep) when installed, otherwise `git grep` inside a repository, otherwise `grep -r` (whose include / exclude only match file names). Works on SSH folders with the same tools on the remote machine. Stops after 20,000 results.
 
 ### Source Control
 - Changes, staged changes and conflicts, each with stage, unstage and discard actions.

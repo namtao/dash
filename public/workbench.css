@@ -276,6 +276,49 @@ body.resizing iframe, body.resizing .xterm { pointer-events: none; }
 .ficon { width: 16px; height: 16px; flex: none; object-fit: contain; }
 .tab-icon .ficon { width: 15px; height: 15px; }
 
+/* ---------- Search (tìm trong thư mục) ---------- */
+.srch { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.srch-form { display: flex; gap: 2px; padding: 0 10px 0 2px; }
+.srch-twisty { flex: none; width: 18px; border: 0; background: transparent; color: var(--muted); cursor: pointer; font-size: 11px; border-radius: 4px; }
+.srch-twisty:hover { background: var(--wb-hover); color: var(--text); }
+.srch-fields { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.srch-box { position: relative; display: flex; align-items: center; }
+.srch-box input { width: 100%; height: 26px; padding: 3px 8px; border-radius: 5px; background: var(--wb-input); font: 13px var(--sans); }
+.srch-box input:focus { box-shadow: none; }
+.srch-opts { position: absolute; right: 3px; display: flex; gap: 1px; }
+.srch-box:has(.srch-opts) input { padding-right: 72px; }
+.srch-rep input, .srch-details .srch-box input { padding-right: 28px !important; }
+.srch-opt { min-width: 20px; height: 20px; padding: 0 3px; border: 1px solid transparent; border-radius: 4px; background: transparent; color: var(--muted); cursor: pointer; font: 600 11.5px var(--mono); }
+.srch-opt:hover { background: var(--wb-hover); color: var(--text); }
+.srch-opt.on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-text); }
+.srch-rep, .srch-details { display: none; }
+.srch.with-replace .srch-rep { display: flex; }
+.srch.with-details .srch-details { display: flex; }
+.srch-more { display: flex; justify-content: flex-end; padding: 0 10px; height: 20px; }
+.srch-more .icon { height: 18px; min-width: 22px; }
+.srch-details { flex-direction: column; gap: 6px; padding: 0 10px 6px 20px; }
+.srch-details label { display: flex; flex-direction: column; gap: 2px; font-size: 11.5px; color: var(--muted); }
+.srch-msg { padding: 4px 12px 6px 20px; font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+.srch-msg:empty { display: none; }
+.srch-err { color: var(--red-text); }
+.srch-results { flex: 1; min-height: 0; overflow: auto; outline: none; padding-bottom: 20px; }
+.srch-row { display: flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px; cursor: pointer; white-space: nowrap; font-size: 13px; }
+.srch-row:hover { background: var(--wb-hover); }
+.srch-row.sel { background: var(--wb-sel); }
+.srch-results:focus .srch-row.sel { outline: 1px solid var(--accent); outline-offset: -1px; }
+.srch-file .fname { color: var(--text); flex: none; max-width: 70%; }
+.srch-file .fdir { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: 11.5px; color: var(--faint); }
+.srch-count { margin-left: auto; min-width: 18px; padding: 0 5px; border-radius: 9px; background: var(--chip-bg); text-align: center; font-size: 10.5px; color: var(--muted); }
+.srch-match { padding-left: 36px; color: var(--text-2); }
+.srch-line { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.srch-line mark { background: var(--amber-soft); color: inherit; border-radius: 2px; box-shadow: 0 0 0 1px var(--amber-line); }
+.srch-line del { background: var(--red-soft); color: var(--red-text); }
+.srch-line ins { background: var(--green-soft); color: var(--green-text); text-decoration: none; }
+.srch-actions { display: none; gap: 1px; }
+.srch-row:hover .srch-actions, .srch-row.sel .srch-actions { display: flex; }
+.srch-actions .icon { min-width: 18px; height: 18px; font-size: 11px; }
+.srch-file:hover .srch-count { display: none; }
+
 /* ---------- Source control ---------- */
 .scm-commit { padding: 0 10px 8px; display: flex; flex-direction: column; gap: 6px; }
 .scm-branch { border: 0; background: transparent; text-align: left; display: flex; align-items: center; gap: 6px; padding: 2px 2px; cursor: pointer; color: var(--text-2); }

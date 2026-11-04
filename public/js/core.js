@@ -7,7 +7,7 @@
 // (bố cục, tab, terminal, phiên Claude, thư mục…) lưu riêng theo cửa sổ để không đè lên nhau.
 const WS_ID = new URLSearchParams(location.search).get("w") || "main";
 (() => {
-  const SCOPED = new Set(["layout", "folder", "tabs", "termGroups", "termActive", "claudeCurrent", "claudeDraft", "explorerOpen"]);
+  const SCOPED = new Set(["layout", "folder", "tabs", "termGroups", "termActive", "claudeCurrent", "claudeDraft", "explorerOpen", "searchState"]);
   const get = store.get;
   const set = store.set;
   const key = (k) => (WS_ID !== "main" && SCOPED.has(k) ? `${k}@${WS_ID}` : k);
@@ -573,7 +573,13 @@ const W = (() => {
   W.rebuildKeys = () => {
     keyMap = new Map();
     for (const c of W.commands.values()) {
-      for (const combo of W.keyFor(c.id).split(/\s*,\s*/).filter(Boolean)) keyMap.set(normCombo(combo), c.id);
+      for (const combo of W.keyFor(c.id).split(/\s*,\s*/).filter(Boolean)) {
+        const k = normCombo(combo);
+        // một phím có thể gắn nhiều lệnh theo ngữ cảnh (vd. Ctrl+Shift+F: tìm trong terminal / tìm trong thư mục);
+        // lệnh có điều kiện "when" được thử trước
+        const ids = [...(keyMap.get(k) || []), c.id];
+        keyMap.set(k, ids.sort((a, b) => !W.commands.get(a).when - !W.commands.get(b).when));
+      }
     }
   };
 
@@ -583,10 +589,8 @@ const W = (() => {
       if (document.querySelector("dialog[open]") && e.key !== "Escape") return;
       const combo = W.comboOf(e);
       if (!combo) return;
-      const id = keyMap.get(combo);
-      if (!id) return;
-      const c = W.commands.get(id);
-      if (c.when && !c.when(e)) return;
+      const c = (keyMap.get(combo) || []).map((id) => W.commands.get(id)).find((x) => !x.when || x.when(e));
+      if (!c) return;
       e.preventDefault();
       e.stopPropagation();
       c.run();
@@ -954,6 +958,7 @@ const W = (() => {
     file: svg('<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/>'),
     diff: svg('<path d="M6 3v12M18 9v12M3 6h6M15 18h6M3 15l3 3 3-3M15 6l3-3 3 3"/>'),
     sql: svg('<ellipse cx="12" cy="5.5" rx="7.5" ry="2.8"/><path d="M4.5 5.5v13c0 1.5 3.4 2.8 7.5 2.8s7.5-1.3 7.5-2.8v-13"/>'),
+    search: svg('<circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21"/>'),
     keys: svg('<rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/>'),
   };
   W.ICON = ICON;
@@ -984,7 +989,7 @@ const W = (() => {
       layout.showPanel = true;
       applyLayout();
       W.showPanel();
-    }, "Ctrl+Alt+Enter");
+    }, "Ctrl+Alt+Enter", { when: () => !document.activeElement?.closest?.(".srch") }); // trong ô Search: Ctrl+Alt+Enter = Replace all
     W.command("tab.close", "Close editor tab", () => W.active && W.closeTab(W.active.id), "Alt+Shift+W", { when: () => !document.activeElement?.closest?.(".xterm") });
     W.command("tab.next", "Next editor tab", () => cycleTab(1), "Ctrl+PageDown");
     W.command("tab.prev", "Previous editor tab", () => cycleTab(-1), "Ctrl+PageUp");

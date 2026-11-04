@@ -156,6 +156,7 @@
         ...(isDir ? [{ label: "Open as current folder", run: () => W.setFolder(p) }] : [{ label: "Open", run: () => openFile(p) }]),
         ...(!isDir ? [{ label: "Open as text", run: () => openFile(p, { asText: true }) }] : []),
         { label: "Open terminal here", run: () => W.term.create({ cwd: dir }) },
+        ...(isDir ? [{ label: "Find in folder…", run: () => W.searchIn?.(p) }] : []),
         { label: "Generate file tree", run: () => fileTree(isDir ? p : dir) },
         ...(!isDir ? [{ label: isReadonly(p) ? "Allow editing" : "Make read-only", run: () => { const t = W.findTab(`file:${p}`); if (t?.inst?.toggleReadonly) t.inst.toggleReadonly(); else setReadonly(p, !isReadonly(p)); } }] : []),
         { label: "Ask Claude about this", run: () => W.claudeMention?.(p) },
@@ -739,15 +740,30 @@
           return false;
         }
       },
-      reveal(line, column = 1) {
-        if (!st.editor) return setTimeout(() => this.reveal(line, column), 200);
-        st.editor.setPosition({ lineNumber: line, column });
+      // endColumn: bôi đen đoạn từ column tới endColumn (vd. kết quả tìm kiếm)
+      reveal(line, column = 1, endColumn = 0) {
+        if (!st.editor) return setTimeout(() => this.reveal(line, column, endColumn), 200);
+        if (endColumn > column) st.editor.setSelection({ startLineNumber: line, startColumn: column, endLineNumber: line, endColumn });
+        else st.editor.setPosition({ lineNumber: line, column });
         st.editor.focus();
         // cuộn sau khi editor đã đổi kích thước (vd. vừa mở panel bên dưới)
         requestAnimationFrame(() => {
           st.editor.layout();
           st.editor.revealPositionInCenter({ lineNumber: line, column });
         });
+      },
+      // Đọc lại từ đĩa sau khi file bị sửa ở nơi khác (vd. Replace của Search); giữ được Undo. Bỏ qua nếu đang có thay đổi chưa lưu.
+      async reload() {
+        if (!st.model || inst.isDirty()) return false;
+        const file = await api("GET", `/api/files/read?path=${encodeURIComponent(p)}`);
+        if (file.content == null || inst.isDirty()) return false;
+        st.mtime = file.mtime;
+        st.size = file.size;
+        if (file.content !== st.model.getValue()) {
+          st.saved = file.content;
+          st.model.pushEditOperations([], [{ range: st.model.getFullModelRange(), text: file.content }], () => null);
+        }
+        return true;
       },
       dispose() {
         st.disposed = true;
@@ -863,9 +879,9 @@
     };
   }
 
-  function openFile(p, { line, column, asText } = {}) {
+  function openFile(p, { line, column, endColumn, asText } = {}) {
     const t = W.openTab(fileTab(p, asText));
-    if (line) t.inst?.reveal?.(line, column);
+    if (line) t.inst?.reveal?.(line, column, endColumn);
     return t;
   }
   W.openFile = openFile;
