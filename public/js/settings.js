@@ -476,7 +476,6 @@
     if (cur && profiles().some((x) => x.id === cur)) return cur;
     return W.quickPick(profiles().map((p) => ({ label: p.label, detail: `${p.user ? `${p.user}@` : ""}${p.host}`, value: p.id })), { placeholder });
   };
-  W.registerView("terminals", { title: "Terminals", icon: W.ICON.terminal, order: 4, action: () => W.run("terminal.toggle") });
   W.registerView("ssh", { title: "SSH", icon: W.ICON.ssh, order: 4.5, key: "view.ssh", mount: mountSsh, show: paintSsh });
   W.command("view.ssh", "Show SSH profiles", () => W.showView("ssh"), "Ctrl+Shift+U");
   W.command("ssh.add", "SSH: add profile…", () => sshModal());

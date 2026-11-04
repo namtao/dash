@@ -335,10 +335,7 @@ function projectView(p) {
       </div>
       <div class="btn-group">
         ${p.url ? `<button class="btn sm" data-action="open-url" data-url="${esc(p.url)}">↗ Open web</button>` : ""}
-        <button class="btn sm" data-action="dash-terminal" title="New terminal in this project">›_ Terminal</button>
-        <button class="btn sm" data-action="dash-files" title="Show files in the Explorer">Files</button>
-        ${remote ? "" : `<button class="btn sm" data-action="dash-claude" title="Ask Claude in this project">✳ Claude</button>
-        <button class="btn sm ghost" data-action="open" data-what="folder" title="Open in the file manager">Folder</button>`}
+        ${remote ? "" : `<button class="btn sm" data-action="open" data-what="folder" title="Open in the file manager">${W.ICON.files} Folder</button>`}
       </div>
     </div>
     <nav class="tabs">${tabs
@@ -925,15 +922,6 @@ const actions = {
     if (await saveProject(p, { commands }, null)) renderMain();
   },
   open: (el) => guarded(() => api("POST", "/api/open", { project: S.sel, what: el.dataset.what })),
-  "dash-terminal": () => W.term.create({ cwd: project().path }),
-  "dash-files": () => {
-    W.setFolder(project().path);
-    W.showView("explorer");
-  },
-  "dash-claude": () => {
-    W.setFolder(project().path);
-    W.run("claude.focus");
-  },
   "open-url": (el) => window.open(el.dataset.url, "_blank", "noopener"),
   copy: (el) => {
     navigator.clipboard?.writeText(el.dataset.text).then(() => toast("Path copied", "ok"));

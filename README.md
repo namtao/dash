@@ -49,7 +49,7 @@ Install Dash as an app from the browser menu (**Install** / **Open as window**) 
 | Area | Contents |
 |------|----------|
 | Title bar | Project tabs, current folder (click to switch: project, recent folder or any path), Go to file / commands, toggles for side bar, panel and Claude, theme |
-| Activity bar (left) | Projects, Explorer, Search, Source Control, Terminals, SSH, Saved commands, Database, Claude, Local AI, Settings |
+| Activity bar (left) | Projects, Explorer, Search, Source Control, SSH, Saved commands, Database, Claude, Local AI, Settings |
 | Editor tabs | Overview / project details, files, diffs, SQL queries, Settings. Tabs reopen after a reload, can be reordered by dragging and closed with a middle click. Unsaved tabs show ● and ask before closing. |
 | Panel (bottom) | Terminal, Problems, History, Output (backup/restore logs). Hidden when the page opens; it appears when you open a terminal. |
 | Claude (right) | Claude Code conversations |
