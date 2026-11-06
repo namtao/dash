@@ -312,8 +312,8 @@ body.resizing iframe, body.resizing .xterm { pointer-events: none; }
 .srch-match { padding-left: 36px; color: var(--text-2); }
 .srch-line { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .srch-line mark { background: var(--amber-soft); color: inherit; border-radius: 2px; box-shadow: 0 0 0 1px var(--amber-line); }
-.srch-line del { background: var(--red-soft); color: var(--red-text); }
-.srch-line ins { background: var(--green-soft); color: var(--green-text); text-decoration: none; }
+.srch-line del { background: var(--diff-del); color: var(--red-text); }
+.srch-line ins { background: var(--diff-add); color: var(--green-text); text-decoration: none; }
 .srch-actions { display: none; gap: 1px; }
 .srch-row:hover .srch-actions, .srch-row.sel .srch-actions { display: flex; }
 .srch-actions .icon { min-width: 18px; height: 18px; font-size: 11px; }
@@ -521,8 +521,8 @@ body.resizing iframe, body.resizing .xterm { pointer-events: none; }
 .cl-tab-x { flex: none; }
 .ldiff { font: 11.5px/1.45 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
 .ldiff div { padding: 0 8px; }
-.ldiff .add { background: var(--green-soft); color: var(--green-text); }
-.ldiff .del { background: var(--red-soft); color: var(--red-text); }
+.ldiff .add { background: var(--diff-add); color: var(--green-text); }
+.ldiff .del { background: var(--diff-del); color: var(--red-text); }
 .ldiff .ctx { color: var(--faint); }
 .todos { list-style: none; margin: 0; padding: 6px 10px; }
 .todo-completed { color: var(--faint); text-decoration: line-through; }
