@@ -224,14 +224,15 @@ async function commitFiles(dir, hash) {
 
 async function branches(dir) {
   const top = await root(dir);
-  const r = await git(top, ["branch", "-a", "--format=%(refname:short)%x1f%(HEAD)"]);
+  const r = await git(top, ["branch", "-a", "--format=%(refname:short)\x1f%(HEAD)"]);
   return r.stdout
     .split("\n")
     .filter(Boolean)
     .map((l) => {
       const [name, head] = l.split("\x1f");
       return { name, current: head === "*" };
-    });
+    })
+    .filter((b) => b.name !== "origin");
 }
 
 async function checkout(dir, branch, create = false) {
