@@ -547,10 +547,11 @@ body.resizing iframe, body.resizing .xterm { pointer-events: none; }
 .cl-att { position: relative; }
 .cl-att .icon { position: absolute; top: 0; right: 0; min-width: 18px; height: 18px; background: var(--panel); }
 .cl-suggest {
-  position: absolute; left: 10px; right: 10px; bottom: 100%; max-height: 240px; overflow: auto; z-index: 10;
+  position: absolute; left: 10px; right: 10px; bottom: 100%; max-height: 320px; overflow: auto; z-index: 10;
   background: var(--panel); border: 1px solid var(--line-2); border-radius: 6px; box-shadow: var(--shadow-lg); font: 12px var(--mono);
 }
-.cl-suggest div { padding: 4px 10px; cursor: pointer; }
+.cl-suggest div { padding: 4px 10px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cl-suggest .sug-desc { margin-left: 10px; font-family: var(--sans); }
 .cl-suggest div.sel { background: var(--wb-sel); }
 
 /* ---------- Database ---------- */

@@ -132,10 +132,23 @@
     return div;
   }
 
-  function scrollDown(s, force) {
+  // Bám đáy như terminal: luôn cuộn xuống cuối khi nội dung mới tới, trừ khi người dùng đã tự cuộn lên.
+  // Trạng thái "bám" lấy từ sự kiện scroll (trước khi nội dung lớn lên), không đo sau khi đã thêm nội dung.
+  let stick = true;
+  let scrollQueued = false;
+  function stickToBottom() {
     const box = root && $(".cl-scroll", root);
-    if (!box || !s || current !== s.id) return;
-    if (force || box.scrollHeight - box.scrollTop - box.clientHeight < 160) requestAnimationFrame(() => (box.scrollTop = box.scrollHeight));
+    if (!box || !stick || scrollQueued) return;
+    scrollQueued = true;
+    requestAnimationFrame(() => {
+      scrollQueued = false;
+      if (stick) box.scrollTop = box.scrollHeight;
+    });
+  }
+  function scrollDown(s, force) {
+    if (!s || current !== s.id) return;
+    if (force) stick = true;
+    stickToBottom();
   }
 
   function renderMsg(s, m) {
@@ -145,7 +158,7 @@
     }
     const nested = m.parent_tool_use_id ? "nested" : "";
     if (m.type === "system" && m.subtype === "init") {
-      s.commands = m.slash_commands || [];
+      if (!s.commands.length || typeof s.commands[0] === "string") s.commands = m.slash_commands || [];
       s.info.model = m.model;
       if (!s.inited) add(s, `<span class="faint">Session started · ${esc(m.model)} · ${esc(W.shortPath(m.cwd))}${m.permissionMode ? ` · ${esc(m.permissionMode)}` : ""}</span>`, "cl-sys");
       s.inited = true;
@@ -229,6 +242,10 @@
         el.classList.add("done");
         $(".perm-actions", el).innerHTML = `<span class="faint">${{ allow: "Allowed", allowAlways: "Always allowed", deny: "Denied", cancelled: "Cancelled" }[m.behavior] || m.behavior}</span>`;
       }
+      return;
+    }
+    if (m.type === "dash_commands") {
+      s.commands = m.commands || [];
       return;
     }
     if (m.type === "dash_error") return add(s, `<div class="cl-err">${esc(m.message)}</div>`, "cl-sys");
@@ -361,11 +378,13 @@
     const input = $(".cl-input", root);
     let text = input.value.trim();
     if (!text && !pending.images.length) return;
-    if (text === "/clear" && !pending.images.length) {
+    // Lệnh xử lý ngay trong Dash, không gửi cho Claude.
+    const local = { "/clear": clearSession, "/remote-control": remoteControl, "/rc": remoteControl }[text];
+    if (local && !pending.images.length) {
       input.value = "";
       autoGrow(input);
       store.set("claudeDraft", "");
-      return clearSession();
+      return local();
     }
     let s = sessions.get(current);
     if (!s || s.info.closed) s = await newSession();
@@ -381,6 +400,7 @@
     store.set("claudeDraft", "");
     const hist = store.get("claudePrompts", []).filter((x) => x !== text);
     store.set("claudePrompts", [text, ...hist].slice(0, 100));
+    scrollDown(s, true);
     await api("POST", `/api/claude/sessions/${s.id}/send`, { content }).catch((e) => toast(e.message, "error"));
   }
 
@@ -409,11 +429,16 @@
     } else if (slash) {
       const s = sessions.get(current);
       const q = slash[1].toLowerCase();
-      const cmds = (s?.commands?.length ? s.commands : ["compact", "clear", "init", "review", "cost", "context"]).map((c) => (typeof c === "string" ? c : c.name));
-      suggest = { kind: "/", start: 0, sel: 0, items: cmds.filter((c) => c.toLowerCase().includes(q)).slice(0, 12).map((c) => ({ label: `/${c}`, value: `/${c} ` })) };
+      const cmds = (s?.commands?.length ? s.commands : ["compact", "clear", "init", "review", "cost", "context", "usage", "model", "mcp", "config"]).map((c) => (typeof c === "string" ? { name: c } : c));
+      if (!cmds.some((c) => c.name === "remote-control")) cmds.push({ name: "remote-control", description: "Continue in a terminal with Remote Control, to drive it from claude.ai/code or the Claude app (Dash)" });
+      // Khớp đầu tên trước, rồi khớp giữa tên, rồi khớp mô tả; hiện hết (danh sách tự cuộn).
+      const rank = (c) => (c.name.toLowerCase().startsWith(q) ? 0 : c.name.toLowerCase().includes(q) ? 1 : (c.description || "").toLowerCase().includes(q) ? 2 : 3);
+      const items = cmds.map((c) => [rank(c), c]).filter(([r]) => r < 3).sort((a, b) => a[0] - b[0] || a[1].name.localeCompare(b[1].name)).map(([, c]) => c);
+      suggest = { kind: "/", start: 0, sel: 0, items: items.map((c) => ({ label: `/${c.name}`, hint: c.argumentHint || "", desc: c.description || "", value: `/${c.name} ` })) };
     } else suggest.items = [];
     box.classList.toggle("hidden", !suggest.items.length);
-    box.innerHTML = suggest.items.map((it, i) => `<div class="${i === suggest.sel ? "sel" : ""}" data-sug="${i}">${esc(it.label)}</div>`).join("");
+    box.innerHTML = suggest.items.map((it, i) => `<div class="${i === suggest.sel ? "sel" : ""}" data-sug="${i}"${it.desc ? ` title="${esc(it.desc)}"` : ""}><span class="sug-name">${esc(it.label)}</span>${it.hint ? ` <span class="faint">${esc(it.hint)}</span>` : ""}${it.desc ? `<span class="sug-desc faint">${esc(it.desc)}</span>` : ""}</div>`).join("");
+    box.scrollTop = 0;
   }
   function applySuggest(input, i) {
     const it = suggest.items[i];
@@ -431,7 +456,7 @@
     root.innerHTML = `<div class="cl">
       <div class="cl-head">
         <div class="cl-tabs"></div>
-        <div class="cl-head-actions"><button class="icon" data-cl="new" title="New conversation (${esc(W.keyFor("claude.new"))})">＋</button><button class="icon" data-cl="history" title="Resume past conversation">⟲</button><button class="icon" data-cmd="claude.toggle" title="Hide">✕</button></div>
+        <div class="cl-head-actions"><button class="icon" data-cl="new" title="New conversation (${esc(W.keyFor("claude.new"))})">＋</button><button class="icon" data-cl="history" title="Resume past conversation">⟲</button><button class="icon" data-cl="remote" title="Remote Control: continue in a terminal and drive it from claude.ai/code or the Claude app">⇆</button><button class="icon" data-cmd="claude.toggle" title="Hide">✕</button></div>
       </div>
       <div class="cl-usage"></div>
       <div class="cl-scroll"></div>
@@ -460,7 +485,8 @@
       if (suggest.items.length) {
         if (e.key === "ArrowDown" || e.key === "ArrowUp") {
           suggest.sel = (suggest.sel + (e.key === "ArrowDown" ? 1 : -1) + suggest.items.length) % suggest.items.length;
-          $$(".cl-suggest div", root).forEach((d, i) => d.classList.toggle("sel", i === suggest.sel));
+          $$(".cl-suggest [data-sug]", root).forEach((d, i) => d.classList.toggle("sel", i === suggest.sel));
+          $(".cl-suggest .sel", root)?.scrollIntoView({ block: "nearest" });
           return e.preventDefault();
         }
         if (e.key === "Enter" || e.key === "Tab") {
@@ -520,6 +546,14 @@
         applySuggest(input, Number(d.dataset.sug));
       }
     });
+    const box = $(".cl-scroll", root);
+    box.addEventListener("scroll", () => {
+      stick = box.scrollHeight - box.scrollTop - box.clientHeight < 40;
+    });
+    // Nội dung đổi ở bất cứ đâu (chữ đang stream, kết quả công cụ, ảnh tải xong) hay khung đổi cỡ đều giữ đáy.
+    new MutationObserver(stickToBottom).observe(box, { childList: true, subtree: true, characterData: true });
+    new ResizeObserver(stickToBottom).observe(box);
+    box.addEventListener("load", stickToBottom, true);
     root.addEventListener("click", async (e) => {
       const x = e.target.closest("[data-close-sess]");
       if (x) {
@@ -533,6 +567,7 @@
         const a = b.dataset.cl;
         if (a === "new") return newSession();
         if (a === "history") return resumePicker();
+        if (a === "remote") return remoteControl();
         if (a === "send") return send();
         if (a === "stop") return interrupt();
         if (a === "usage") return loadUsage(true);
@@ -593,6 +628,26 @@
     if (current === id) showSession([...sessions.keys()][0] || null);
     else paintHeader();
     return true;
+  }
+
+  // Remote Control chỉ có ở chế độ tương tác của Claude Code CLI (SDK không bật được), nên chạy nó trong terminal.
+  // Có cuộc trò chuyện đang mở thì tiếp tục chính cuộc đó; không thì chạy server `claude remote-control` ở thư mục hiện tại.
+  async function remoteControl() {
+    const s = sessions.get(current);
+    const cwd = s?.info.cwd || W.folder;
+    if (W.isRemote(cwd)) return toast("Claude runs on this machine. Open a local folder to use Remote Control.", "error");
+    const q = (v) => `'${String(v).replace(/'/g, "'\\''")}'`;
+    const mode = s?.info.permissionMode || $(".cl-mode", root)?.value || W.ws().claudePermissionMode || "default";
+    let cmd;
+    if (s?.info.sessionId) {
+      if (s.info.busy) return toast("Claude is still working. Stop it or wait, then try again.", "error");
+      const ok = await confirmDialog("Continue this conversation in a terminal with Remote Control, so you can drive it from claude.ai/code or the Claude app? It closes here; resume it later with ⟲.", { title: "Remote Control", ok: "Continue in terminal" });
+      if (!ok) return;
+      cmd = `claude --resume ${q(s.info.sessionId)} --remote-control ${q(s.info.title || "Dash")} --permission-mode ${q(mode)}${s.info.model ? ` --model ${q(s.info.model)}` : ""}`;
+      await closeSession(current, false);
+    } else cmd = `claude remote-control --name ${q(W.shortPath(cwd).split("/").pop() || "Dash")} --permission-mode ${q(mode)}`;
+    await W.term.create({ cwd });
+    setTimeout(() => W.term.insert(cmd, { run: true }), 700);
   }
 
   // /clear như Claude Code CLI: bỏ cuộc trò chuyện hiện tại, mở cuộc mới cùng thư mục, model và chế độ quyền.

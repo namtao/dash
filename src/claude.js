@@ -209,6 +209,11 @@ async function start(opts = {}) {
 
   s.query = query({ prompt: inputStream(s), options });
   emit({ id: s.id, created: info(s) });
+  // Danh sách lệnh / đầy đủ (built-in, skills, custom commands) kèm mô tả, có ngay mà không cần gửi prompt.
+  s.query.supportedCommands().then((cmds) => {
+    s.commands = cmds.map(({ name, description, argumentHint }) => ({ name, description: description || "", argumentHint: argumentHint || "" }));
+    emit({ id: s.id, msg: { type: "dash_commands", commands: s.commands } });
+  }, () => {});
   (async () => {
     try {
       for await (const msg of s.query) {
@@ -311,7 +316,10 @@ function close(id) {
 }
 
 const list = (ws) => [...sessions.values()].filter((s) => !ws || s.ws === ws).map(info);
-const transcript = (id) => get(id).log;
+const transcript = (id) => {
+  const s = get(id);
+  return s.commands ? [{ type: "dash_commands", commands: s.commands }, ...s.log] : s.log;
+};
 
 async function history(cwd) {
   const { listSessions } = await loadSdk();
