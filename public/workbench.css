@@ -521,8 +521,8 @@ body.resizing iframe, body.resizing .xterm { pointer-events: none; }
 .cl-tab-x { flex: none; }
 .ldiff { font: 11.5px/1.45 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
 .ldiff div { padding: 0 8px; }
-.ldiff .add { background: var(--diff-add); color: var(--green-text); }
-.ldiff .del { background: var(--diff-del); color: var(--red-text); }
+.ldiff .add { background: var(--diff-add); }
+.ldiff .del { background: var(--diff-del); }
 .ldiff .ctx { color: var(--faint); }
 .todos { list-style: none; margin: 0; padding: 6px 10px; }
 .todo-completed { color: var(--faint); text-decoration: line-through; }

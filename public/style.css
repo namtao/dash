@@ -88,8 +88,8 @@ html[data-theme="dark"] {
   --red-soft: rgba(224, 108, 117, 0.13);
   --red-line: rgba(224, 108, 117, 0.45);
   --red-text: #e06c75;
-  --diff-add: rgba(152, 195, 121, 0.24);
-  --diff-del: rgba(224, 108, 117, 0.24);
+  --diff-add: rgba(62, 92, 64, 0.5);
+  --diff-del: rgba(134, 66, 70, 0.5);
   --violet: #c678dd;
   --violet-soft: rgba(198, 120, 221, 0.14);
   --violet-text: #c678dd;
