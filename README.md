@@ -114,13 +114,20 @@ The **current folder** is shared within a window: Explorer, Source Control, Hist
 
 ### Claude Code
 - Uses your installed `claude` CLI and its login through the Claude Agent SDK, with your CLAUDE.md, settings, skills and MCP servers.
-- Several conversations at once. Resume past conversations of the current folder.
+- Several conversations at once. Resume past conversations of the current folder, or of any folder from Claude Manager.
 - Choose the model and the permission mode (ask before edits, accept edits, plan, auto, bypass).
 - Replies stream in. Tool calls and thinking are collapsed to one line; click a line to see the command (IN), its output (OUT) or the diff. Edit and Write can open their diff in the diff editor. Long code wraps.
 - Permission requests can be allowed, always allowed or denied (with a note to Claude). Claude's multiple-choice questions appear as a form.
 - In the input: @ mentions files, / lists every command Claude Code offers (built-in, skills, custom) with descriptions, pasted images are attached, ↑ recalls earlier prompts, and Esc stops Claude. Dash can tell Claude which file is open in the editor.
 - **Remote Control**: the ⇆ button (or `/remote-control`) continues the open conversation in a terminal with `claude --resume … --remote-control`, so you can drive it from claude.ai/code or the Claude app; with no conversation open it runs `claude remote-control` in the current folder. The SDK cannot enable Remote Control itself.
 - **Updates**: with "Update Claude Code automatically" on (the default), Dash runs `claude update` a few minutes after it starts and then once a day. Settings → Claude Code updates shows the version and has an **Update now** button.
+- **Claude Manager** (☰ in the Claude panel, or "Claude: Claude Manager" in the command palette) opens a tab that manages everything Claude Code keeps on this machine. "Project" scope means the current folder; SSH folders show only user-level items.
+  - **Conversations** of this folder, this folder and its subfolders, or every folder, grouped by folder and searchable. Open a read-only transcript, resume it in the Claude panel or in a terminal (`claude --resume`), rename it, copy it as Markdown, or delete it.
+  - **Prompt history**: prompts typed in the Claude Code CLI (`~/.claude/history.jsonl`), per folder; send one back to the Claude input.
+  - **Skills, agents, slash commands, output styles and rules** from `~/.claude`, `<project>/.claude` and installed plugins. Click to edit in the editor; ＋ creates one from a template. Deleting moves it to `~/.claude/backups/dash-trash` (a symlinked skill only loses its link).
+  - **Memory**: user, project and local CLAUDE.md, AGENTS.md and the auto memory files of the folder.
+  - **Hooks** and **Permissions** (allow / ask / deny, extra folders, default mode) per settings file: user, project or local. Dash changes only that key, writes the file atomically and keeps the previous copy in `~/.claude/backups/dash`.
+  - **MCP servers** (user, local, project `.mcp.json`) and **plugins / marketplaces** go through `claude mcp` and `claude plugin`. MCP `env` and `headers` values are masked in the browser and kept when you save without changing them.
 - **Usage limits**: the status bar and the top of the Claude panel show 5-hour and weekly utilization with their reset times. Dash reads them from the same endpoint as Claude Code's `/usage` command, using the OAuth token in `~/.claude/.credentials.json`. Reading them sends no prompt and uses no tokens. The server caches the result for `usageRefreshSec` seconds (default 60), and live values from running conversations update it in between. The token never reaches the browser.
 
 ### Coin prices

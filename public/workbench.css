@@ -625,6 +625,61 @@ textarea.cell-input { min-height: 80px; position: relative; z-index: 4; }
 .kb-key.custom kbd { border-color: var(--accent-line); color: var(--accent-text); }
 .kb-key.recording { border-color: var(--accent); background: var(--accent-soft); }
 
+/* ---------- Claude Manager ---------- */
+.cm-host { background: var(--wb-editor); overflow: auto; }
+.cm { display: flex; max-width: 1200px; margin: 0 auto; min-height: 100%; }
+.cm-nav { width: 210px; flex: none; padding: 20px 10px; position: sticky; top: 0; align-self: flex-start; display: flex; flex-direction: column; gap: 2px; }
+.cm-nav a { display: flex; justify-content: space-between; padding: 5px 10px; border-radius: 5px; color: var(--muted); }
+.cm-nav a:hover { background: var(--wb-hover); color: var(--text); text-decoration: none; }
+.cm-nav a.active { background: var(--wb-sel); color: var(--text); }
+.cm-cur { display: flex; flex-direction: column; gap: 2px; padding: 0 4px 10px; margin-bottom: 6px; border-bottom: 1px solid var(--line-soft); }
+.cm-cur .btn { justify-content: flex-start; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.cm-body { flex: 1; min-width: 0; padding: 16px 28px 80px; }
+.cm-body h2 { font-size: 18px; margin: 4px 0 10px; }
+.cm-bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+.cm-search { flex: 1; min-width: 180px; }
+.cm-split { display: flex; gap: 14px; align-items: flex-start; }
+.cm-folders { width: 230px; flex: none; position: sticky; top: 0; max-height: 80vh; overflow: auto; border-right: 1px solid var(--line-soft); padding-right: 8px; }
+.cm-folder { display: flex; justify-content: space-between; gap: 6px; padding: 4px 8px; border-radius: 5px; cursor: pointer; font: 12px var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cm-folder:hover { background: var(--wb-hover); }
+.cm-folder.active { background: var(--wb-sel); }
+.cm-rows { flex: 1; min-width: 0; }
+.cm-row { display: flex; gap: 10px; align-items: center; padding: 7px 8px; border-bottom: 1px solid var(--line-soft); border-radius: 4px; }
+.cm-row[data-open], .cm-row[data-cm-edit] { cursor: pointer; }
+.cm-row:hover { background: var(--wb-hover); }
+.cm-row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; overflow-wrap: anywhere; }
+.cm-row-main small { color: var(--muted); font-size: 12px; }
+.cm-row-actions { display: flex; gap: 4px; align-items: center; flex: none; opacity: 0.55; }
+.cm-row:hover .cm-row-actions { opacity: 1; }
+.cm-cmd { font: 12px var(--mono); color: var(--muted); white-space: pre-wrap; word-break: break-all; max-height: 4.5em; overflow: hidden; }
+.cm-prompt { white-space: pre-wrap; max-height: 7.5em; overflow: hidden; }
+.cm-group { font-size: 13px; margin: 18px 0 6px; display: flex; gap: 8px; align-items: center; }
+.cm-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 4px; }
+.cm-chips .chip .icon { padding: 0 2px; height: auto; min-width: 0; font-size: 11px; }
+.cm-note { margin: 4px 0 10px; font-size: 12.5px; }
+.cm-note.err { color: var(--red-text); }
+.cm-chat { max-width: 960px; margin: 0 auto; padding: 0 24px 60px; }
+.cm-chat-head { position: sticky; top: 0; z-index: 1; display: flex; gap: 12px; align-items: center; justify-content: space-between; padding: 14px 0 10px; background: var(--wb-editor); border-bottom: 1px solid var(--line-soft); }
+.cm-chat-head > div:first-child { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.cm-chat-actions { display: flex; gap: 6px; flex: none; }
+.cm-msg { margin: 14px 0; line-height: 1.55; overflow-wrap: anywhere; }
+.cm-msg.user { background: var(--wb-sel); border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; }
+.cm-msg-meta { font-size: 12px; font-weight: 600; margin-bottom: 4px; }
+.cm-text { white-space: pre-wrap; }
+.cm-md { white-space: pre-wrap; }
+.cm-md:has(> *) { white-space: normal; }
+.cm-tool { margin: 4px 0; font-size: 12.5px; }
+.cm-tool summary { cursor: pointer; color: var(--muted); font-family: var(--mono); }
+.cm-tool.err summary { color: var(--red-text); }
+.cm-tool pre { margin: 4px 0; padding: 8px 10px; border-radius: 6px; background: var(--log-bg); max-height: 360px; overflow: auto; white-space: pre-wrap; font-size: 12px; }
+@media (max-width: 760px) {
+  .cm { flex-direction: column; }
+  .cm-nav { position: static; width: auto; flex-direction: row; flex-wrap: wrap; padding: 10px; }
+  .cm-body { padding: 10px 12px 60px; }
+  .cm-split { flex-direction: column; }
+  .cm-folders { position: static; width: 100%; max-height: 30vh; border-right: 0; }
+}
+
 /* ---------- SSH ---------- */
 .ssh-list { padding: 2px 0; }
 .ssh-row { display: flex; align-items: center; gap: 7px; height: 28px; padding: 0 8px 0 12px; cursor: pointer; white-space: nowrap; }

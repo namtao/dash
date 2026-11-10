@@ -23,6 +23,7 @@ const remote = require("./src/remote");
 const sshForward = require("./src/ssh-forward");
 const localAi = require("./src/local-ai");
 const claudeUpdate = require("./src/claude-update");
+const claudeManager = require("./src/claude-manager");
 const codeTools = require("./src/code-tools");
 const cryptoPrices = require("./src/crypto-prices");
 const { WebSocketServer } = require("ws");
@@ -419,6 +420,25 @@ route("POST", "/api/claude/sessions/:id/interrupt", async (req, { id }) => {
   return { ok: true };
 });
 route("PUT", "/api/claude/sessions/:id", async (req, { id }) => claude.configure(id, await readBody(req)));
+
+// ---------- Quản lý Claude Code (lịch sử mọi thư mục, skills, hooks, MCP, plugin…) ----------
+const q = (url, k) => url.searchParams.get(k) || "";
+route("GET", "/api/claude/manage/sessions", (req, p, url) => claudeManager.sessions({ cwd: q(url, "cwd"), scope: q(url, "scope") || "all" }));
+route("GET", "/api/claude/manage/sessions/:sid", (req, { sid }, url) => claudeManager.messages(sid, q(url, "cwd")));
+route("PUT", "/api/claude/manage/sessions/:sid", async (req, { sid }) => {
+  const b = await readBody(req);
+  return claudeManager.rename(sid, b.cwd, b.title);
+});
+route("DELETE", "/api/claude/manage/sessions/:sid", (req, { sid }, url) => claudeManager.remove(sid, q(url, "cwd"), claude.list().map((s) => s.sessionId).filter(Boolean)));
+route("GET", "/api/claude/manage/prompts", (req, p, url) => claudeManager.prompts({ cwd: q(url, "cwd"), scope: q(url, "scope") || "folder" }));
+route("GET", "/api/claude/manage/config", (req, p, url) => claudeManager.inventory(q(url, "cwd")));
+route("POST", "/api/claude/manage/item", async (req) => claudeManager.create(await readBody(req)));
+route("POST", "/api/claude/manage/trash", async (req) => claudeManager.trash(await readBody(req)));
+route("PUT", "/api/claude/manage/setting", async (req) => claudeManager.setSetting(await readBody(req)));
+route("PUT", "/api/claude/manage/mcp", async (req) => claudeManager.mcpSave(await readBody(req)));
+route("POST", "/api/claude/manage/mcp/remove", async (req) => claudeManager.mcpRemove(await readBody(req)));
+route("GET", "/api/claude/manage/plugins", (req, p, url) => claudeManager.plugins({ cwd: q(url, "cwd"), available: q(url, "available") === "1" }));
+route("POST", "/api/claude/manage/plugins", async (req) => claudeManager.pluginAction(await readBody(req)));
 route("DELETE", "/api/claude/sessions/:id", (req, { id }) => {
   claude.close(id);
   return { ok: true };
@@ -600,6 +620,7 @@ server.listen(listenPort, listenHost, () => {
   console.log(`Dash: http://${listenHost === "0.0.0.0" ? "127.0.0.1" : listenHost}:${listenPort}  ·  config: ${store.CONFIG_PATH}`);
   if (!process.env.DASH_NO_AUTOSTART) runner.autostart();
   claudeUpdate.schedule(claude.claudeBinary);
+  claudeManager.setBinary(() => claude.claudeBinary() || "claude");
 });
 
 let closing = false;

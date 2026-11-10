@@ -456,7 +456,7 @@
     root.innerHTML = `<div class="cl">
       <div class="cl-head">
         <div class="cl-tabs"></div>
-        <div class="cl-head-actions"><button class="icon" data-cl="new" title="New conversation (${esc(W.keyFor("claude.new"))})">＋</button><button class="icon" data-cl="history" title="Resume past conversation">⟲</button><button class="icon" data-cl="remote" title="Remote Control: continue in a terminal and drive it from claude.ai/code or the Claude app">⇆</button><button class="icon" data-cmd="claude.toggle" title="Hide">✕</button></div>
+        <div class="cl-head-actions"><button class="icon" data-cl="new" title="New conversation (${esc(W.keyFor("claude.new"))})">＋</button><button class="icon" data-cl="history" title="Resume past conversation">⟲</button><button class="icon" data-cl="remote" title="Remote Control: continue in a terminal and drive it from claude.ai/code or the Claude app">⇆</button><button class="icon" data-cmd="claude.manager" title="Claude Manager: all conversations, skills, hooks, MCP, plugins">☰</button><button class="icon" data-cmd="claude.toggle" title="Hide">✕</button></div>
       </div>
       <div class="cl-usage"></div>
       <div class="cl-scroll"></div>
@@ -694,6 +694,11 @@
     autoGrow(input);
   }
   W.claudeMention = mention;
+  // Mở lại một cuộc trò chuyện cũ (từ Claude Manager) trong panel Claude, đúng thư mục của nó.
+  W.claudeResume = ({ sessionId, cwd, title }) => {
+    if (!W.layout.showAux) W.run("claude.toggle");
+    return newSession({ resume: sessionId, cwd, title: String(title || "").slice(0, 30) });
+  };
   W.claudeAsk = (text) => {
     W.run("claude.focus");
     const input = $(".cl-input", root);
