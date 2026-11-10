@@ -1,4 +1,6 @@
 ZDOTDIR=$DASH_USER_ZDOTDIR
+# /etc/zshrc (macOS) đặt HISTFILE theo ZDOTDIR lúc còn trỏ vào shim: trả lịch sử về file của người dùng
+[[ $HISTFILE == $DASH_SHIM_DIR/* ]] && HISTFILE=$ZDOTDIR/.zsh_history
 [[ -f $ZDOTDIR/.zshrc ]] && source $ZDOTDIR/.zshrc
 source $DASH_SHIM_DIR/../activate-python-env.sh
 unset DASH_SHIM_DIR DASH_USER_ZDOTDIR
