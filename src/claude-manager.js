@@ -413,6 +413,12 @@ async function messages(sessionId, cwd) {
     const c = m.message?.content;
     const blocks = (Array.isArray(c) ? c : [c]).filter((x) => x != null).map(blockText).filter((b) => b && (b.text || b.kind !== "text"));
     if (!blocks.length) continue;
+    // Nội dung skill / ngữ cảnh Claude Code tự chèn: hiện như một khối thu gọn thay vì cả trang chữ
+    const first = blocks[0].kind === "text" ? blocks[0].text : "";
+    const skill = first.match(/^\s*Base directory for this skill:\s*\S*\/([^/\s]+)\/?\s*$/m);
+    if (m.type === "user" && (m.isMeta || skill)) {
+      blocks.splice(0, blocks.length, { kind: "tool", name: skill ? "Skill loaded" : "Context added by Claude Code", hint: skill ? skill[1] : "", text: blocks.map((b) => b.text).join("\n") });
+    }
     const role = m.type === "user" && blocks.every((b) => b.kind === "result") ? "assistant" : m.type;
     const last = out[out.length - 1];
     if (role === "assistant" && last?.role === "assistant") last.blocks.push(...blocks);

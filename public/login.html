@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Sign in · Dash</title>
+    <link rel="icon" href="/icon.svg" />
+    <meta name="theme-color" content="#21252b" />
+    <style>
+      :root { color-scheme: dark; --bg: #282c34; --card: #21252b; --fg: #d7dae0; --muted: #8b93a1; --accent: #4d8af0; --err: #e06c75; }
+      html.light { color-scheme: light; --bg: #f3f4f6; --card: #fff; --fg: #24292f; --muted: #6b7280; --err: #c0392b; }
+      * { box-sizing: border-box; }
+      body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: var(--bg); color: var(--fg); font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+      form { width: min(340px, 92vw); background: var(--card); padding: 28px; border-radius: 10px; box-shadow: 0 8px 30px rgb(0 0 0 / 0.25); display: grid; gap: 12px; }
+      h1 { margin: 0; font-size: 18px; display: flex; align-items: center; gap: 10px; }
+      h1 img { width: 26px; height: 26px; }
+      label { display: grid; gap: 4px; font-size: 12px; color: var(--muted); }
+      input { font: inherit; padding: 9px 10px; border-radius: 6px; border: 1px solid color-mix(in srgb, var(--muted) 40%, transparent); background: var(--bg); color: var(--fg); }
+      input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+      button { font: inherit; padding: 9px; border: 0; border-radius: 6px; background: var(--accent); color: #fff; cursor: pointer; }
+      button:disabled { opacity: 0.6; cursor: default; }
+      p { margin: 0; font-size: 13px; color: var(--muted); }
+      .err { color: var(--err); min-height: 1.5em; }
+    </style>
+    <script>
+      try {
+        if (JSON.parse(localStorage.getItem("dash:theme") || '"dark"') !== "dark") document.documentElement.classList.add("light");
+      } catch {}
+    </script>
+  </head>
+  <body>
+    <form id="f">
+      <h1><img src="/icon.svg" alt="" />Dash</h1>
+      <p id="msg">Enter the Dash password to use this device.</p>
+      <label>Password<input id="pw" type="password" autocomplete="current-password" required autofocus /></label>
+      <label>Device name (optional)<input id="name" maxlength="60" placeholder="e.g. Work laptop" /></label>
+      <button id="go">Sign in</button>
+      <p class="err" id="err" role="alert"></p>
+    </form>
+    <script>
+      (async () => {
+        const $ = (id) => document.getElementById(id);
+        // Chỉ quay lại đường dẫn cùng trang (chặn open redirect kiểu //evil.com)
+        const raw = new URLSearchParams(location.search).get("next") || "/";
+        const next = /^\/(?![/\\])/.test(raw) && !raw.startsWith("/login.html") ? raw : "/";
+        const st = await fetch("/api/auth/state").then((r) => r.json()).catch(() => ({}));
+        if (st.signedIn) return location.replace(next);
+        if (st.passwordSet === false) {
+          $("msg").textContent = "No password is set yet. In a terminal on the Dash machine run: npm run set-password";
+          $("pw").disabled = $("name").disabled = $("go").disabled = true;
+        }
+        $("f").addEventListener("submit", async (e) => {
+          e.preventDefault();
+          $("go").disabled = true;
+          $("err").textContent = "";
+          try {
+            const r = await fetch("/api/auth/login", {
+              method: "POST",
+              headers: { "Content-Type": "application/json", "X-Dash": "1" },
+              body: JSON.stringify({ password: $("pw").value, name: $("name").value }),
+            });
+            const d = await r.json().catch(() => ({}));
+            if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`);
+            location.replace(next);
+          } catch (err) {
+            $("err").textContent = err.message;
+            $("pw").select();
+            $("go").disabled = false;
+          }
+        });
+      })();
+    </script>
+  </body>
+</html>

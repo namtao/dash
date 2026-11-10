@@ -10,6 +10,7 @@
   },
   "scripts": {
     "start": "node server.js",
+    "set-password": "node src/auth.js",
     "check": "node --check server.js && for f in src/*.js src/db/*.js public/app.js public/js/*.js; do node --check \"$f\" || exit 1; done",
     "service:install": "bash scripts/install-service.sh",
     "service:uninstall": "bash scripts/install-service.sh --uninstall"

@@ -46,8 +46,29 @@ async function api(method, url, body) {
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   const data = await res.json().catch(() => ({}));
+  if (res.status === 401) toLogin();
   if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
   return data;
+}
+
+// Báo server là người dùng đang thao tác (gõ phím, bấm, cuộn, di chuột), tối đa mỗi phút. Vào qua Tailscale mà 30 phút
+// không thao tác thì server tự đăng xuất; request tự động (giá coin, usage…) không tính.
+(() => {
+  let last = 0;
+  const ping = () => {
+    if (Date.now() - last < 60000) return;
+    last = Date.now();
+    fetch("/api/auth/active", { method: "POST", headers: { "X-Dash": "1" } })
+      .then((r) => r.status === 401 && toLogin())
+      .catch(() => {});
+  };
+  for (const t of ["keydown", "pointerdown", "pointermove", "wheel", "touchstart"]) window.addEventListener(t, ping, { capture: true, passive: true });
+})();
+
+// Phiên đăng nhập hết hạn / bị thu hồi: đưa cả cửa sổ (không phải khung tab) về trang đăng nhập
+function toLogin() {
+  const t = window.top.location;
+  if (!t.pathname.startsWith("/login.html")) t.href = `/login.html?next=${encodeURIComponent(t.pathname + t.search)}`;
 }
 
 // Toast nằm trong top layer (popover) và được đưa lên lại mỗi lần hiện, nên luôn nổi trên modal đang mở

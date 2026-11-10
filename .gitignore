@@ -231,3 +231,9 @@ logs/
 
 # node
 node_modules/
+
+# lịch sử shell nếu lỡ ghi vào thư mục shim
+shell-integration/**/.zsh_history
+shell-integration/**/.bash_history
+.dash-auth.json
+.dash-auth.json.tmp

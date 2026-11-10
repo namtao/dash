@@ -207,7 +207,14 @@
         if (m.parent_tool_use_id) return;
         const text = typeof content === "string" ? content : content.filter((b) => b.type === "text").map((b) => b.text).join("\n");
         if (/^<(command-|local-command|system-reminder)/.test(text.trim())) return;
-        const imgs = Array.isArray(content) ? content.filter((b) => b.type === "image").map((b) => `<img src="data:${b.source.media_type};base64,${b.source.data}" />`).join("") : "";
+        // Nội dung skill / ngữ cảnh do Claude Code tự chèn (isMeta): thu gọn thành một dòng, bấm mới mở
+        const skill = text.match(/^\s*Base directory for this skill:\s*\S*\/([^/\s]+)\/?\s*$/m);
+        if (m.isMeta || skill) {
+          add(s, `<details class="cl-meta"><summary>${skill ? `⚡ Skill loaded: <b>${esc(skill[1])}</b>` : "Context added by Claude Code"} <span class="faint">(${text.length.toLocaleString("en-US")} chars)</span></summary><pre>${esc(text)}</pre></details>`, "cl-meta-row");
+          scrollDown(s, true);
+          return;
+        }
+        const imgs = Array.isArray(content) ? content.filter((b) => b.type === "image").map((b) => `<img src="data:${esc(b.source.media_type)};base64,${esc(b.source.data)}" />`).join("") : "";
         add(s, `<div class="cl-user-text">${esc(text)}</div>${imgs ? `<div class="cl-imgs">${imgs}</div>` : ""}`, "cl-user");
         scrollDown(s, true);
         return;
@@ -272,7 +279,7 @@
     const detail = toolDetail(m.toolName, m.input);
     add(
       s,
-      `<div class="perm" data-perm="${m.requestId}">
+      `<div class="perm" data-perm="${esc(m.requestId)}">
         <div class="perm-title">Allow <b>${esc(m.toolName)}</b>? ${toolSummary(m.toolName, m.input)}</div>
         ${m.reason ? `<div class="faint">${esc(m.reason)}</div>` : ""}
         ${detail ? `<div class="tool-detail">${detail}</div>` : ""}

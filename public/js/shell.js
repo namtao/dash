@@ -14,7 +14,11 @@
   if (!state.tabs.includes(state.active)) state.active = "main";
 
   const save = () => localStorage.setItem(KEY, JSON.stringify(state));
-  const api = (method, url) => fetch(url, { method, headers: { "X-Dash": "1" } }).then((r) => r.json());
+  const api = (method, url) =>
+    fetch(url, { method, headers: { "X-Dash": "1" } }).then((r) => {
+      if (r.status === 401) location.href = `/login.html?next=${encodeURIComponent(location.pathname + location.search)}`;
+      return r.json();
+    });
 
   function notify() {
     save();

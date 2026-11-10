@@ -894,3 +894,7 @@ html[data-theme="dark"] .shadow-root-host {
 .prob-ico { width: 14px; flex: none; text-align: center; }
 .prob-msg { min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--text-2); }
 .prob-pos { margin-left: auto; padding-left: 8px; font: 11px var(--mono); color: var(--faint); flex: none; }
+.settings .ra-pw { display: flex; flex-direction: column; gap: 6px; }
+.cl-meta { font-size: 12px; color: var(--muted, inherit); }
+.cl-meta summary { cursor: pointer; }
+.cl-meta pre { max-height: 320px; overflow: auto; white-space: pre-wrap; font-size: 11px; }

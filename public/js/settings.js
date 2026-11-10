@@ -41,7 +41,7 @@
     const render = () => {
       const ws = W.ws();
       host.innerHTML = `<div class="settings">
-        <div class="settings-nav">${[...FIELDS.map(([s]) => s), "Claude Code updates", "Local AI", "Keyboard shortcuts", "Projects & server", "Export"].map((s) => `<a href="#" data-jump="${esc(s)}">${esc(s)}</a>`).join("")}</div>
+        <div class="settings-nav">${[...FIELDS.map(([s]) => s), "Claude Code updates", "Local AI", "Remote access", "Keyboard shortcuts", "Projects & server", "Export"].map((s) => `<a href="#" data-jump="${esc(s)}">${esc(s)}</a>`).join("")}</div>
         <div class="settings-body">
           <input class="settings-filter" type="search" placeholder="Search settings" />
           ${FIELDS.map(
@@ -67,6 +67,10 @@
             <div class="setting"><div class="setting-label"><b>API key</b><small>Optional. Most local servers do not need one.</small></div><div class="setting-input"><input data-ai="apiKey" type="password" autocomplete="new-password" placeholder="${W.config().ai?.hasApiKey ? "•••••• (saved)" : "none"}" /></div></div>
             <div class="setting"><div class="setting-label"><b>Connection</b><small class="ai-status"></small></div><div class="setting-input"><button class="btn" data-ai-test>Test / list models</button></div></div>
           </section>
+          <section data-sec="Remote access"><h2>Remote access</h2>
+            <p class="faint">Open Dash from your other devices through Tailscale only: Dash also listens on this machine's Tailscale address (100.x), which only devices in your tailnet can reach. Turn it on once from this machine; it stays on after restarts. Every device, this machine included, signs in with the password below.</p>
+            <div class="ra-body"><p class="faint">Loading…</p></div>
+          </section>
           <section data-sec="Keyboard shortcuts"><h2>Keyboard shortcuts</h2>
             <p class="faint">Click a shortcut, then press the new keys. Separate several shortcuts with a comma. Browsers reserve a few keys (Ctrl+T, Ctrl+W, Ctrl+N, Ctrl+Tab); install Dash as an app (browser menu → Install) to free more of them.</p>
             <input class="kb-filter" type="search" placeholder="Search commands or keys" />
@@ -84,7 +88,60 @@
         </div></div>`;
       paintKeys();
       paintUpdate();
+      paintRemote();
     };
+
+    const ago = (t) => {
+      const m = Math.round((Date.now() - t) / 60000);
+      return m < 2 ? "now" : m < 60 ? `${m} min ago` : m < 2880 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} days ago`;
+    };
+
+    async function paintRemote() {
+      const box = $(".ra-body", host);
+      if (!box) return;
+      try {
+        const [st, list, ts] = await Promise.all([api("GET", "/api/auth/state"), api("GET", "/api/auth/devices"), api("GET", "/api/tailscale").catch((e) => ({ error: e.message }))]);
+        const link = (u) => `<a href="${esc(u)}" target="_blank" rel="noopener">${esc(u)}</a>`;
+        const port = location.port || "8899";
+        const tsText = !ts.installed ? esc(ts.error || "Tailscale is not installed on this machine.") : !ts.running ? `Tailscale is not running or not logged in. ${esc(ts.error || "")}` : ts.on ? `On: ${ts.listening ? link(`http://${ts.listening}:${port}`) : "waiting for the Tailscale address"}` : `Off. When on: http://${esc(ts.ip || "<tailscale-ip>")}:${esc(port)}`;
+        box.innerHTML = `
+          <div class="setting"><div class="setting-label"><b>Tailscale access</b><small>${tsText}${st.local ? "" : " Can only be changed on the Dash machine."}</small></div>
+            <div class="setting-input">${st.local && ts.running ? (ts.on ? `<button class="btn" data-ra-act="ts-off">Turn off</button>` : `<button class="btn primary" data-ra-act="ts-on">Turn on</button>`) : ""}</div></div>
+          <div class="setting"><div class="setting-label"><b>Password</b><small>Needed on every device, this machine too. ${st.local ? "Changing it signs out every other device. At least 12 characters. " : "Can only be changed on the Dash machine. "}Forgot it? Run <code>npm run set-password</code> in the Dash folder on the Dash machine.</small></div>
+            <div class="setting-input ra-pw">${st.local ? `<input data-ra="current" type="password" autocomplete="current-password" placeholder="Current password" />
+              <input data-ra="password" type="password" autocomplete="new-password" placeholder="New password" />
+              <input data-ra="confirm" type="password" autocomplete="new-password" placeholder="Repeat new password" />
+              <button class="btn primary" data-ra-act="set">Change password</button>` : ""}</div></div>
+          <div class="setting"><div class="setting-label"><b>Devices</b><small>Only one device may use Dash through Tailscale. It keeps that place when it signs out; to use another device, remove the old one here (only on the Dash machine). A Tailscale device is signed out after 30 minutes without typing, clicking or scrolling.</small></div>
+            <div class="setting-input">${st.local && list.length > 1 ? `<button class="btn" data-ra-act="others">Sign out all other devices</button>` : ""}
+              <button class="btn" data-ra-act="logout">Sign out this device</button></div></div>
+          ${list.length ? `<table class="kb-table"><thead><tr><th>Device</th><th>Address</th><th>Status</th><th>Last used</th><th>First signed in</th><th></th></tr></thead><tbody>${list
+            .map((d) => `<tr><td><b>${esc(d.name)}</b>${d.current ? ` <span class="faint">(this device)</span>` : ""}<div class="faint" style="font-size:11px" title="${esc(d.ua)}">${esc(d.ua.slice(0, 70))}</div></td>
+              <td class="mono">${esc(d.ip)}${d.remote ? ` <span class="faint">Tailscale</span>` : ` <span class="faint">this machine</span>`}</td><td>${d.signedIn ? "Signed in" : `<span class="faint">Signed out</span>`}</td><td>${ago(d.lastSeen)}</td><td>${new Date(d.created).toLocaleString("en-GB")}</td>
+              <td>${st.local && !d.current ? `<button class="btn sm ghost" data-ra-revoke="${esc(d.id)}" title="Remove this device">Remove</button>` : ""}</td></tr>`)
+            .join("")}</tbody></table>` : ""}`;
+      } catch (e) {
+        box.innerHTML = `<p class="faint">${esc(e.message)}</p>`;
+      }
+    }
+
+    async function remoteAction(act) {
+      const val = (k) => $(`[data-ra="${k}"]`, host)?.value || "";
+      if (act === "set") {
+        if (val("password") !== val("confirm")) return toast("The new passwords do not match", "error");
+        if (!(await guarded(() => api("PUT", "/api/auth/password", { current: val("current"), password: val("password") }), "Password saved"))) return;
+      } else if (act === "others") {
+        if (!(await confirmDialog("Signed-out devices will need the password again.", { title: "Sign out devices", ok: "Sign out", danger: true }))) return;
+        await guarded(() => api("DELETE", "/api/auth/devices"), "Devices signed out");
+      } else if (act === "logout") {
+        await guarded(() => api("POST", "/api/auth/logout"));
+        return toLogin();
+      } else if (act === "ts-on" || act === "ts-off") {
+        $$("[data-ra-act^=ts]", host).forEach((b) => (b.disabled = true));
+        await guarded(() => api(act === "ts-on" ? "POST" : "DELETE", "/api/tailscale"), act === "ts-on" ? "Tailscale access on" : "Tailscale access off");
+      }
+      paintRemote();
+    }
 
     async function paintUpdate(force) {
       const el = $(".cu-status", host);
@@ -208,6 +265,10 @@
         paintUpdate(true).finally(() => (cu.disabled = false));
       }
       if (e.target.closest("[data-ai-test]")) testAi();
+      const ra = e.target.closest("[data-ra-act]");
+      if (ra) remoteAction(ra.dataset.raAct);
+      const rv = e.target.closest("[data-ra-revoke]");
+      if (rv) guarded(() => api("DELETE", `/api/auth/devices/${encodeURIComponent(rv.dataset.raRevoke)}`), "Device signed out").then(paintRemote);
     });
     host.addEventListener("focusin", (e) => {
       if (e.target.dataset?.ai === "model" && !$("#ai-models", host).children.length) testAi();
@@ -253,6 +314,13 @@
   };
   W.registerRestorer("settings", () => openSettings());
   W.registerView("settings", { title: "Settings", icon: W.ICON.settings, bottom: true, order: 99, action: () => openSettings() });
+  // Đăng xuất thiết bị này (qua Tailscale thì thiết bị vẫn giữ chỗ, lần sau chỉ cần nhập lại mật khẩu)
+  const signOut = async () => {
+    await api("POST", "/api/auth/logout").catch(() => {});
+    toLogin();
+  };
+  W.registerView("signout", { title: "Sign out", icon: W.ICON.signout, bottom: true, order: 100, action: signOut });
+  W.command("auth.signout", "Sign out", signOut);
   W.command("settings.open", "Open settings", () => openSettings(), "Ctrl+,");
   W.command("settings.keys", "Keyboard shortcuts", () => openSettings("Keyboard shortcuts"), "Ctrl+Shift+H");
   W.command("settings.export", "Export configuration (JSON)", () => {

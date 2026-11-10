@@ -2,6 +2,7 @@
 // Dash: workspace local (dự án, terminal, git, Claude, database). Cài: npm install. Chạy: node server.js
 // (mặc định http://127.0.0.1:8899). Dữ liệu thời gian thực (terminal, Claude) đi qua WebSocket /ws.
 const http = require("http");
+const net = require("net");
 const fs = require("fs");
 const path = require("path");
 const store = require("./src/store");
@@ -26,6 +27,9 @@ const claudeUpdate = require("./src/claude-update");
 const claudeManager = require("./src/claude-manager");
 const codeTools = require("./src/code-tools");
 const cryptoPrices = require("./src/crypto-prices");
+const auth = require("./src/auth");
+const peerGuard = require("./src/peer-guard");
+const tailscale = require("./src/tailscale");
 const { WebSocketServer } = require("ws");
 
 const PUBLIC_DIR = path.join(__dirname, "public");
@@ -487,14 +491,57 @@ route("DELETE", "/api/logs", async (req, params, url) => {
   return { ok: true };
 });
 
+// ---------- Đăng nhập từ xa ----------
+route("GET", "/api/auth/state", (req) => auth.state(req));
+route("POST", "/api/auth/login", async (req, params, url, res) => auth.login(req, res, await readBody(req)));
+route("POST", "/api/auth/logout", (req, params, url, res) => auth.logout(req, res, req.who));
+route("GET", "/api/auth/devices", (req) => auth.devices(req.who));
+// Xoá thiết bị và đổi mật khẩu chỉ làm được ở máy này (127.0.0.1); thiết bị từ xa chỉ tự đăng xuất chính nó
+route("DELETE", "/api/auth/devices/:id", (req, { id }) => (localOnly(req), { removed: auth.revoke((s) => s.id === id) }));
+// Đăng xuất mọi thiết bị khác (trên máy này: tất cả)
+// Đăng xuất mọi thiết bị khác (thiết bị từ xa vẫn giữ chỗ)
+route("DELETE", "/api/auth/devices", (req) => (localOnly(req), { signedOut: auth.endSessions((s) => s.id !== req.who.id, "signed out from this machine") }));
+route("POST", "/api/auth/active", (req) => auth.touchActive(req.who));
+route("PUT", "/api/auth/password", async (req) => (localOnly(req), auth.setPassword(req.who, await readBody(req))));
+// Bật / tắt nghe trên IP Tailscale: phiên đã đăng nhập và ngồi tại máy này (tắt từ xa là tự cắt kết nối của mình)
+const localOnly = (req) => {
+  if (!auth.isLocal(req)) throw httpError(403, "Only on the Dash machine");
+};
+const tsState = async () => ({ ...(await tailscale.status()), on: auth.tailscaleOn(), listening: tsListen.addr });
+route("GET", "/api/tailscale", tsState);
+route("POST", "/api/tailscale", async (req) => {
+  localOnly(req);
+  auth.setTailscale(true);
+  await syncTailscale();
+  if (!tsListen.addr) throw httpError(400, tsListen.error || "Tailscale is not running, so it has no address yet");
+  return tsState();
+});
+route("DELETE", "/api/tailscale", async (req) => {
+  localOnly(req);
+  auth.setTailscale(false);
+  await syncTailscale();
+  return tsState();
+});
+
 // ---------- HTTP ----------
 
 // Chặn DNS rebinding (Host lạ) và request chéo trang (thiếu header X-Dash ở request ghi).
 function guard(req) {
   const host = (req.headers.host || "").replace(/:\d+$/, "");
-  const allowed = ["127.0.0.1", "localhost", "[::1]", store.load().settings.host];
+  const allowed = ["127.0.0.1", "localhost", "[::1]", store.load().settings.host, tsListen.addr];
   if (!allowed.includes(host)) throw httpError(403, "Host not allowed");
   if (req.method !== "GET" && req.headers["x-dash"] !== "1") throw httpError(403, "Missing X-Dash header");
+}
+
+// Mở từ xa mà chưa đăng nhập: chỉ được vào trang đăng nhập; trang khác chuyển về /login.html, API trả 401.
+const PUBLIC_PATHS = new Set(["/login.html", "/icon.svg", "/manifest.webmanifest", "/api/auth/state", "/api/auth/login"]);
+function authorize(req, res, url) {
+  req.who = auth.identify(req);
+  if (req.who || PUBLIC_PATHS.has(url.pathname)) return true;
+  if (url.pathname.startsWith("/api/")) throw httpError(401, "Sign in required");
+  res.writeHead(302, { Location: `/login.html?next=${encodeURIComponent(url.pathname + url.search)}`, "Cache-Control": "no-store" });
+  res.end();
+  return false;
 }
 
 function sendJson(res, status, data) {
@@ -517,17 +564,31 @@ function serveStatic(res, pathname) {
     res.writeHead(404);
     return res.end("Not found");
   }
-  res.writeHead(200, { "Content-Type": MIME[path.extname(file)] || "application/octet-stream", "Cache-Control": base === PUBLIC_DIR && !pathname.startsWith("/icons/") ? "no-cache" : "max-age=604800" });
+  // Không cho trang khác nhúng Dash vào iframe (clickjacking: bấm hộ vào terminal / nút chạy lệnh)
+  res.writeHead(200, {
+    "Content-Type": MIME[path.extname(file)] || "application/octet-stream",
+    "Cache-Control": base === PUBLIC_DIR && !pathname.startsWith("/icons/") ? "no-cache" : "max-age=604800",
+    "X-Frame-Options": "SAMEORIGIN",
+    "Content-Security-Policy": "frame-ancestors 'self'",
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "same-origin",
+  });
   fs.createReadStream(file).pipe(res);
 }
 
-const server = http.createServer(async (req, res) => {
+const streams = new Set(); // luồng SSE log đang mở
+const handleRequest = async (req, res) => {
   const url = new URL(req.url, "http://localhost");
   try {
     guard(req);
+    if (!authorize(req, res, url)) return;
     if (url.pathname === "/api/logs/stream") {
       const key = url.searchParams.get("key");
       if (!runner.validKey(key)) throw httpError(400, "Invalid log key");
+      // Nhớ luồng log theo phiên để đóng khi thiết bị đăng xuất / bị xoá
+      streams.add(res);
+      res.sessionId = req.who.id;
+      res.on("close", () => streams.delete(res));
       return runner.streamLog(key, req, res);
     }
     if (url.pathname === "/api/logs/download") {
@@ -551,22 +612,87 @@ const server = http.createServer(async (req, res) => {
     if (!err.status) console.error(err);
     if (!res.headersSent) sendJson(res, err.status || 500, { error: err.message });
   }
-});
+};
+const server = http.createServer(handleRequest);
 
 // ---------- WebSocket: terminal + Claude ----------
 // Trình duyệt không gửi header tuỳ ý khi mở WebSocket, nên ngoài kiểm tra Host còn đòi Origin cùng máy.
 const wss = new WebSocketServer({ noServer: true, maxPayload: 32 * 1024 * 1024 });
-server.on("upgrade", (req, socket, head) => {
+function handleUpgrade(req, socket, head) {
+  let who;
   try {
     guard({ method: "GET", headers: req.headers });
     const origin = req.headers.origin ? new URL(req.headers.origin) : null;
     if (!origin || origin.host !== req.headers.host) throw httpError(403, "Bad origin");
     if (new URL(req.url, "http://x").pathname !== "/ws") throw httpError(404, "Not found");
+    who = auth.identify(req);
+    if (!who) throw httpError(401, "Sign in required");
   } catch {
     socket.write("HTTP/1.1 403 Forbidden\r\n\r\n");
     return socket.destroy();
   }
-  wss.handleUpgrade(req, socket, head, (ws) => wss.emit("connection", ws));
+  wss.handleUpgrade(req, socket, head, (ws) => {
+    ws.sessionId = who.id;
+    ws.ipServer = socket.ipServer || null;
+    wss.emit("connection", ws);
+  });
+}
+server.on("upgrade", handleUpgrade);
+
+// Nghe thêm trên IP Tailscale (http://100.x:<cổng>) khi đã bật truy cập từ xa. Mạng Tailscale tự mã hoá (WireGuard);
+// request từ IP này không phải loopback nên luôn phải đăng nhập. Tailscale chưa chạy lúc Dash khởi động thì thử lại mỗi phút.
+const tsListen = { server: null, http: null, addr: "", error: "" };
+// Chạy nối tiếp: bộ hẹn giờ và nút Turn on/off gọi cùng lúc thì không mở hai server trên một cổng
+let tsQueue = Promise.resolve();
+const syncTailscale = () => (tsQueue = tsQueue.then(syncTailscaleNow, syncTailscaleNow));
+async function syncTailscaleNow() {
+  const want = auth.tailscaleOn() ? await tailscale.ip() : "";
+  if (tsListen.addr === want && (want ? tsListen.server : true)) return;
+  if (tsListen.server) {
+    const { server: old, http: oldHttp } = tsListen;
+    Object.assign(tsListen, { server: null, http: null, addr: "" });
+    // Cắt mọi kết nối đang mở qua IP này (WebSocket, SSE, keep-alive) trước, nếu không close() chờ mãi
+    wss.clients.forEach((ws) => ws.ipServer === oldHttp && ws.terminate());
+    oldHttp.closeAllConnections();
+    await new Promise((r) => old.close(r));
+  }
+  if (!want) return;
+  // Chỉ máy thuộc chính tailnet này mới vào được. Hệ điều hành nhận gói gửi tới IP 100.x từ mọi card mạng (weak host),
+  // và máy tailnet khác được share vào cũng có IP 100.x, nên kiểm IP nguồn với danh sách máy của tailnet trước khi
+  // giao kết nối cho HTTP (IP giả không bắt tay TCP được vì gói trả lời đi qua Tailscale).
+  const httpSrv = http.createServer(handleRequest);
+  httpSrv.on("upgrade", (req, socket, head) => {
+    socket.ipServer = httpSrv;
+    handleUpgrade(req, socket, head);
+  });
+  const srv = net.createServer({ pauseOnConnect: true }, async (socket) => {
+    socket.on("error", () => {});
+    if (!(await tailscale.isMember(socket.remoteAddress))) {
+      console.warn(`[auth] ${new Date().toISOString()} refused ${socket.remoteAddress}: not a device of this tailnet`);
+      return socket.destroy();
+    }
+    if (socket.destroyed) return;
+    httpSrv.emit("connection", socket);
+    socket.resume();
+  });
+  await new Promise((resolve) => {
+    srv.once("error", (e) => {
+      tsListen.error = `Cannot listen on ${want}:${listenPort}: ${e.message}`;
+      console.error(tsListen.error);
+      resolve();
+    });
+    srv.listen(listenPort, want, () => {
+      Object.assign(tsListen, { server: srv, http: httpSrv, addr: want, error: "" });
+      console.log(`Dash (Tailscale): http://${want}:${listenPort}`);
+      resolve();
+    });
+  });
+}
+setInterval(() => syncTailscale().catch(() => {}), 60000).unref();
+// Thiết bị đăng xuất / bị xoá: đóng luôn WebSocket và luồng log đang mở của nó
+auth.onRevoke((ids) => {
+  wss.clients.forEach((ws) => ids.has(ws.sessionId) && ws.close(4401, "Signed out"));
+  streams.forEach((res) => ids.has(res.sessionId) && res.end());
 });
 
 const send = (ws, msg) => ws.readyState === 1 && ws.send(JSON.stringify(msg));
@@ -605,10 +731,22 @@ sshForward.on((f) => broadcast({ t: "forward", ...f }));
 
 const { host, port } = store.load().settings;
 const listenPort = Number(process.env.PORT) || port;
-const listenHost = process.env.HOST || host;
+// Cổng chính chỉ nghe loopback. Máy khác vào qua listener IP Tailscale (chỉ nhận máy trong tailnet, 1 thiết bị, tự
+// đăng xuất); nghe 0.0.0.0 / IP LAN sẽ bỏ qua các lớp đó, nên không cho.
+const wantHost = process.env.HOST || host;
+const listenHost = ["127.0.0.1", "::1", "localhost"].includes(wantHost) ? wantHost : "127.0.0.1";
+if (listenHost !== wantHost) console.warn(`Dash only listens on loopback; ignoring host ${wantHost}. Use Settings → Remote access (Tailscale) for other devices.`);
 
 runner.loadState();
-server.on("error", (err) => {
+// Cổng chính nghe qua lớp net: chặn kết nối loopback từ Docker / máy ảo trước khi giao cho HTTP
+const front = net.createServer({ pauseOnConnect: true }, async (socket) => {
+  socket.on("error", () => {});
+  if (!(await peerGuard.allowed(socket))) return socket.destroy();
+  if (socket.destroyed) return;
+  server.emit("connection", socket);
+  socket.resume();
+});
+front.on("error", (err) => {
   if (err.code === "EADDRINUSE") {
     const check = process.platform === "linux" ? `ss -ltnp | grep :${listenPort}` : `lsof -nP -iTCP:${listenPort} -sTCP:LISTEN`;
     console.error(`Port ${listenPort} is in use. Check: ${check}  (Dash may already be running)`);
@@ -616,11 +754,12 @@ server.on("error", (err) => {
   }
   throw err;
 });
-server.listen(listenPort, listenHost, () => {
+front.listen(listenPort, listenHost, () => {
   console.log(`Dash: http://${listenHost === "0.0.0.0" ? "127.0.0.1" : listenHost}:${listenPort}  ·  config: ${store.CONFIG_PATH}`);
   if (!process.env.DASH_NO_AUTOSTART) runner.autostart();
   claudeUpdate.schedule(claude.claudeBinary);
   claudeManager.setBinary(() => claude.claudeBinary() || "claude");
+  syncTailscale().catch(() => {});
 });
 
 let closing = false;
@@ -629,7 +768,8 @@ for (const sig of ["SIGINT", "SIGTERM"]) {
     if (closing) process.exit(1);
     closing = true;
     console.log("Stopping foreground commands…");
-    server.close();
+    front.close();
+    server.closeAllConnections();
     terminals.killAll();
     sshForward.stopAll();
     await runner.shutdown();
