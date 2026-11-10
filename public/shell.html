@@ -3,6 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <script>/* iOS phóng to khi focus ô nhập chữ <16px; maximum-scale=1 tắt việc đó, iOS vẫn cho pinch zoom */ if (/iP(hone|ad|od)/.test(navigator.platform) || (navigator.maxTouchPoints > 1 && /Mac/.test(navigator.platform))) document.querySelector("meta[name=viewport]").content += ", maximum-scale=1";</script>
     <title>Dash</title>
     <link rel="manifest" href="/manifest.webmanifest" />
     <meta name="theme-color" content="#21252b" />
