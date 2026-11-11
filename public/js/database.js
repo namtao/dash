@@ -262,6 +262,24 @@
   }
   W.registerRestorer("sql", (d) => (conn(d.conn) ? newQuery({ ...d, run: false }) : null));
 
+  // File .sql mở thẳng trong tab Query: nội dung đọc/ghi vào file, nhớ connection + database theo từng file.
+  // Trả null khi chưa có connection nào (Explorer mở bằng editor thường).
+  W.sqlFileTab = (p) => {
+    const saved = store.get("sqlFileConn", {})[p] || {};
+    const id = conn(saved.conn) ? saved.conn : store.get("dbLastConn", conns()[0]?.id);
+    const c = conn(id);
+    if (!c) return null;
+    const db = saved.conn === id && saved.db ? saved.db : c.database || "";
+    return {
+      id: `file:${p}`,
+      title: W.base(p),
+      icon: W.fileIcon(p),
+      tooltip: W.shortPath(p),
+      persist: { kind: "file", data: { path: p } },
+      create: (host, tab) => createSqlTab(host, tab, { conn: id, db, sql: "", file: p }),
+    };
+  };
+
   function createSqlTab(host, tab, init) {
     const st = {
       conn: init.conn,
@@ -274,7 +292,13 @@
       running: false,
       disposed: false,
       split: store.get("sqlSplit", 0.45),
+      saved: "", // nội dung file đã lưu (chế độ file)
+      mtime: 0,
+      size: null,
+      autoTimer: 0,
+      autoBlocked: false,
     };
+    const file = init.file;
     host.classList.add("sql-host");
     host.innerHTML = `<div class="sql-toolbar">
         <select class="sql-conn" title="Connection"></select><select class="sql-db" title="Database"></select>
@@ -340,6 +364,13 @@
       el.title = text;
     };
     const persist = () => {
+      if (file) {
+        const m = store.get("sqlFileConn", {});
+        delete m[file];
+        m[file] = { conn: st.conn, db: st.db };
+        store.set("sqlFileConn", Object.fromEntries(Object.entries(m).slice(-200)));
+        return;
+      }
       tab.persist.data = { ...tab.persist.data, conn: st.conn, db: st.db, sql: st.editor ? st.editor.getValue() : tab.persist.data.sql };
       W.persistTabs();
     };
@@ -370,7 +401,22 @@
       const monaco = await W.monaco();
       if (st.disposed) return;
       registerSqlCompletion(monaco);
-      const model = monaco.editor.createModel(init.sql, LANG[conn(st.conn).type]);
+      let text = init.sql;
+      if (file) {
+        try {
+          const f = await api("GET", `/api/files/read?path=${encodeURIComponent(file)}`);
+          if (f.binary || f.tooLarge) throw new Error(`${f.binary ? "Binary file" : "File is too large to edit"}`);
+          text = st.saved = f.content;
+          st.mtime = f.mtime;
+          st.size = f.size;
+          W.emit("file:info");
+        } catch (e) {
+          $(".sql-editor", host).innerHTML = `<div class="empty">${esc(e.message)}</div>`;
+          return;
+        }
+        if (st.disposed) return;
+      }
+      const model = monaco.editor.createModel(text, LANG[conn(st.conn).type]);
       model.dashSql = () => ({ conn: st.conn, db: st.db });
       st.editor = monaco.editor.create($(".sql-editor", host), {
         model,
@@ -390,8 +436,16 @@
       st.editor.addAction({ id: "dash.format", label: "Format SQL", keybindings: [monaco.KeyMod.Shift | monaco.KeyMod.Alt | monaco.KeyCode.KeyF], run: format });
       let t = 0;
       model.onDidChangeContent(() => {
-        clearTimeout(t);
-        t = setTimeout(persist, 500);
+        if (!file) {
+          clearTimeout(t);
+          t = setTimeout(persist, 500);
+          return;
+        }
+        W.markDirty();
+        // Tự lưu file giống editor thường (Settings → auto save)
+        const w = W.ws();
+        clearTimeout(st.autoTimer);
+        if (w.autoSave && !st.autoBlocked) st.autoTimer = setTimeout(() => fileDirty() && saveFile(false, true), w.autoSaveDelay || 1000);
       });
       if (init.run) run(true);
       else st.editor.focus();
@@ -434,9 +488,38 @@
       }
     }
 
-    const isDirty = () => Boolean(st.changes && (st.changes.updates.size || st.changes.deletes.size || st.changes.inserts.length));
+    const fileDirty = () => Boolean(file && st.editor && st.editor.getValue() !== st.saved);
+    async function saveFile(force = false, auto = false) {
+      const content = st.editor.getValue();
+      try {
+        const r = await api("PUT", "/api/files/write", { path: file, content, mtime: st.mtime, force });
+        st.saved = content;
+        st.mtime = r.mtime;
+        st.size = r.size;
+        st.autoBlocked = false;
+        W.markDirty();
+        W.emit("file:info");
+        W.emit("file:saved", file);
+        return true;
+      } catch (e) {
+        if (/changed on disk/.test(e.message)) {
+          // tự lưu không ghi đè thay đổi từ nơi khác: dừng tự lưu cho tới khi người dùng tự lưu
+          if (auto) {
+            st.autoBlocked = true;
+            toast(`${W.base(file)} changed on disk. Auto save paused; press Ctrl+S to choose.`, "error");
+            return false;
+          }
+          if (await confirmDialog(`${W.base(file)} was changed on disk since you opened it.\nOverwrite it with your version?`, { title: "File changed on disk", ok: "Overwrite", danger: true })) return saveFile(true);
+          return false;
+        }
+        toast(e.message, "error");
+        return false;
+      }
+    }
+
+    const gridDirty = () => Boolean(st.changes && (st.changes.updates.size || st.changes.deletes.size || st.changes.inserts.length));
     async function confirmDiscard() {
-      if (!isDirty()) return true;
+      if (!gridDirty()) return true;
       const c = await W.confirm3("The result grid has unsaved changes.", "Save", "Discard");
       if (c === "cancel") return false;
       if (c === "yes") return save();
@@ -627,7 +710,7 @@
 
     async function save() {
       const R = res();
-      if (!isDirty() || !R?.edit) return true;
+      if (!gridDirty() || !R?.edit) return true;
       const E = R.edit;
       const keyOf = (r) => Object.fromEntries(E.pk.map((k) => [k, R.rows[r][E.columns.indexOf(k)]]));
       const toCol = (c) => E.columns[c];
@@ -772,17 +855,47 @@
       }
     });
 
-    return {
-      isDirty,
-      save,
+    const inst = {
+      isDirty: () => gridDirty() || fileDirty(),
+      // Ctrl+S: lưu file (chế độ file) rồi lưu thay đổi trong lưới kết quả
+      save: async () => (fileDirty() && !(await saveFile())) ? false : save(),
       focus: () => st.editor?.focus(),
       layout: () => st.editor?.layout(),
       dispose() {
         st.disposed = true;
+        clearTimeout(st.autoTimer);
         st.editor?.getModel()?.dispose();
         st.editor?.dispose();
       },
     };
+    if (file) {
+      Object.assign(inst, {
+        path: file,
+        size: () => st.size,
+        reveal(line, column = 1, endColumn = 0) {
+          if (!st.editor) return setTimeout(() => inst.reveal(line, column, endColumn), 200);
+          if (endColumn > column) st.editor.setSelection({ startLineNumber: line, startColumn: column, endLineNumber: line, endColumn });
+          else st.editor.setPosition({ lineNumber: line, column });
+          st.editor.focus();
+          requestAnimationFrame(() => st.editor.revealPositionInCenter({ lineNumber: line, column }));
+        },
+        // đọc lại sau khi file bị sửa ở nơi khác (vd. Replace của Search); bỏ qua nếu đang có thay đổi chưa lưu
+        async reload() {
+          if (!st.editor || fileDirty()) return false;
+          const f = await api("GET", `/api/files/read?path=${encodeURIComponent(file)}`);
+          if (f.content == null || fileDirty()) return false;
+          st.mtime = f.mtime;
+          st.size = f.size;
+          if (f.content !== st.editor.getValue()) {
+            st.saved = f.content;
+            const model = st.editor.getModel();
+            model.pushEditOperations([], [{ range: model.getFullModelRange(), text: f.content }], () => null);
+          }
+          return true;
+        },
+      });
+    }
+    return inst;
   }
 
   // ---------- gợi ý SQL ----------

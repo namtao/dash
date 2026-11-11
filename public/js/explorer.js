@@ -868,6 +868,9 @@
   W.on("file:info", paintFileStatus);
 
   function fileTab(p, asText) {
+    // .sql: mở luôn tab Query (chạy được câu lệnh) khi đã có database connection
+    const sqlTab = !asText && /\.sql$/i.test(p) ? W.sqlFileTab?.(p) : null;
+    if (sqlTab) return sqlTab;
     const kind = asText ? null : viewerKind(p);
     return {
       id: `file:${p}`,
