@@ -330,6 +330,7 @@
     $(".cl-stop", root).classList.toggle("hidden", !s?.info.busy);
     $(".cl-send", root).classList.toggle("hidden", Boolean(s?.info.busy));
     $(".cl-cwd", root).textContent = s ? W.shortPath(s.info.cwd) : W.shortPath(W.folder);
+    paintOptsSummary();
     paintUsage();
   }
 
@@ -459,6 +460,15 @@
     input.focus();
   }
 
+  // Dòng tóm tắt trên nút thu gọn: "Opus 5.5 · Auto · file"
+  function paintOptsSummary() {
+    if (!root) return;
+    const label = (sel) => sel?.selectedOptions[0]?.textContent.trim() || "";
+    const parts = [label($(".cl-model", root)), label($(".cl-mode", root)), $(".cl-ctx-toggle", root)?.checked ? "file" : ""].filter(Boolean);
+    $(".cl-opts-sum", root).textContent = parts.join(" · ");
+    $("[data-cl-opts]", root).classList.toggle("open", !$(".cl-opts", root).classList.contains("hidden"));
+  }
+
   function mount() {
     root = $("#aux");
     root.innerHTML = `<div class="cl">
@@ -472,10 +482,13 @@
         <div class="cl-suggest hidden"></div>
         <div class="cl-attach"></div>
         <textarea class="cl-input" rows="2" placeholder="Ask Claude… (@ file, / command)"></textarea>
-        <div class="cl-input-bar">
+        <div class="cl-opts ${store.get("claudeOpts", false) ? "" : "hidden"}">
           <select class="cl-model" title="Model"></select>
           <select class="cl-mode" title="Permission mode"></select>
           <label class="check" title="Tell Claude which file is open in the editor"><input type="checkbox" class="cl-ctx-toggle" ${store.get("claudeCtx", true) ? "checked" : ""}/> file</label>
+        </div>
+        <div class="cl-input-bar">
+          <button type="button" class="cl-opts-btn" data-cl-opts title="Model, permission mode, open-file context"><svg class="cl-opts-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg><span class="cl-opts-sum"></span></button>
           <span class="cl-cwd faint"></span>
           <button class="btn sm danger cl-stop hidden" data-cl="stop" title="Stop (Esc)">■ Stop</button>
           <button class="btn sm primary cl-send" data-cl="send" title="Send (Enter)">Send ↵</button>
@@ -546,7 +559,16 @@
         mention(p);
       }
     });
-    $(".cl-ctx-toggle", root).addEventListener("change", (e) => store.set("claudeCtx", e.target.checked));
+    $(".cl-ctx-toggle", root).addEventListener("change", (e) => {
+      store.set("claudeCtx", e.target.checked);
+      paintOptsSummary();
+    });
+    // Model / chế độ / tích file gọn vào một nút tóm tắt, bấm để mở ra
+    $("[data-cl-opts]", root).addEventListener("click", () => {
+      const open = $(".cl-opts", root).classList.toggle("hidden") === false;
+      store.set("claudeOpts", open);
+      paintOptsSummary();
+    });
     $(".cl-suggest", root).addEventListener("mousedown", (e) => {
       const d = e.target.closest("[data-sug]");
       if (d) {
@@ -606,8 +628,8 @@
       const perm = e.target.closest?.("[data-perm]:not(.done)");
       if (perm && e.key === "Escape" && !perm.dataset.ask) $("[data-answer=deny]", perm)?.click();
     });
-    $(".cl-model", root).addEventListener("change", (e) => configure({ model: e.target.value }));
-    $(".cl-mode", root).addEventListener("change", (e) => configure({ permissionMode: e.target.value }));
+    $(".cl-model", root).addEventListener("change", (e) => (configure({ model: e.target.value }), paintOptsSummary()));
+    $(".cl-mode", root).addEventListener("change", (e) => (configure({ permissionMode: e.target.value }), paintOptsSummary()));
     showSession(sessions.has(current) ? current : [...sessions.keys()][0] || null);
   }
 
@@ -843,7 +865,7 @@
     if (W.layout.showAux && !root) mount();
     W.applyLayout();
     W.paintActivity();
-    if (W.layout.showAux) setTimeout(() => $(".cl-input", root)?.focus(), 30);
+    if (W.layout.showAux && !W.touch()) setTimeout(() => $(".cl-input", root)?.focus(), 30);
   }, "Ctrl+Alt+B, Ctrl+Shift+L");
   W.command("claude.focus", "Claude: focus input", () => {
     if (!W.layout.showAux) W.run("claude.toggle");

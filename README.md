@@ -3,14 +3,15 @@
 A local workspace for the projects on this machine, meant to replace a separate terminal emulator and editor for daily work. It provides:
 
 - real terminals running your own shell, with SSH profiles, port forwarding, saved commands and per-folder command history;
-- a file explorer and editor that also opens folders on SSH machines, with viewers for images, PDF, CSV, Word, Excel and Markdown;
+- a file explorer and editor that also opens folders on SSH machines, with viewers for images, PDF, CSV, Word and Markdown, and an Excel editor;
+- a **Browse Files** view to browse any folder on this machine or an SSH machine, download files or whole folders (ZIP) and upload files or folders;
 - Source Control with side-by-side git diffs and commit messages written by a local AI;
 - Claude Code chat that shows your 5-hour and weekly usage limits and keeps Claude Code up to date;
 - a chat with a local AI model (Ollama, LM Studio or any OpenAI-compatible server);
 - a database client for PostgreSQL, MySQL/MariaDB, SQL Server and SQLite, with backup and restore;
 - the project dashboard: commands, processes, logs, Python envs and packages, for local and SSH projects.
 
-It works on phones too: the side bar and Claude open as overlays and the activity bar moves to the bottom.
+It works on phones too: the side bar and Claude open as overlays and the activity bar moves to the bottom. On phones, the ✎ button next to **Views** in the Menu lets you choose which items sit on it (up to 5, e.g. Browse Files or Source Control) and move them up or down, in the same order as the desktop activity bar.
 
 The layout follows VS Code, and the dark theme is One Dark Pro Darker.
 
@@ -119,7 +120,7 @@ Install Dash as an app from the browser menu (**Install** / **Open as window**) 
 | Area | Contents |
 |------|----------|
 | Title bar | Project tabs, current folder (click to switch: project, recent folder or any path), Go to file / commands, toggles for side bar, panel and Claude, theme |
-| Activity bar (left) | Projects, Explorer, Search, Source Control, SSH, Saved commands, Database, Claude, Local AI, Settings |
+| Activity bar (left) | Projects, Explorer, Browse Files, Search, Source Control, SSH, Saved commands, Database, Claude, Local AI, Settings. Drag icons to reorder them; the order is saved on the server and shared with the phone nav bar ("Reset activity bar order" in the command palette restores it). |
 | Editor tabs | Overview / project details, files, diffs, SQL queries, Settings. Tabs reopen after a reload, can be reordered by dragging and closed with a middle click. Unsaved tabs show ● and ask before closing. |
 | Panel (bottom) | Terminal, Problems, History, Output (backup/restore logs). Hidden when the page opens; it appears when you open a terminal. |
 | Claude (right) | Claude Code conversations |
@@ -162,12 +163,18 @@ The **current folder** is shared within a window: Explorer, Source Control, Hist
 - File and folder icons come from **Atom Material Icons** (the `a-file-icon-vscode` VS Code icon theme, MIT license), copied into `public/icons/atom/`. Run `node scripts/sync-icons.js` to refresh them from the installed VS Code extension.
 - **Ctrl+P** opens a file by name.
 - Files open in Monaco (the VS Code editor). **Auto save** is on by default (1 s after you stop typing; change it in Settings). Ctrl+S saves too. If the file changed on disk since you opened it, Dash asks before overwriting, and auto save pauses for that file.
-- **Viewers**: images, PDF, CSV/TSV (as a table), Word `.docx` and Excel `.xlsx` (one tab per sheet). CSV and SVG can also be edited as text. Markdown and HTML files have a live **Preview** beside the editor (Ctrl+Shift+V). HTML from Markdown and Word files is sanitized; HTML pages run in a sandboxed frame with no access to Dash, and their relative CSS, JS and images load from the file's folder.
+- **Viewers**: images, PDF, CSV/TSV (as a table), Word `.docx`, and Excel `.xlsx` (one tab per sheet) where cells can be edited: double-click or type, Tab / Enter move, paste a block copied from a spreadsheet, Ctrl+S saves. Saving rewrites the workbook with ExcelJS, so charts, pivot tables, images and macros can be lost; new formulas are calculated when Excel opens the file. CSV and SVG can also be edited as text. Markdown and HTML files have a live **Preview** beside the editor (Ctrl+Shift+V). HTML from Markdown and Word files is sanitized; HTML pages run in a sandboxed frame with no access to Dash, and their relative CSS, JS and images load from the file's folder.
 - **Format** (Shift+Alt+F): built in for JSON, CSS, HTML, JavaScript and TypeScript; prettier for YAML, Markdown, GraphQL, SCSS and Less; sql-formatter for SQL; and, when installed, ruff or black (Python), shfmt (shell), gofmt, rustfmt, clang-format, stylua and taplo.
 - **Problems**: JavaScript and TypeScript are type-checked as in VS Code (undefined names, wrong types, wrong arguments; missing modules are ignored because the editor does not read `node_modules`), and JSON, CSS and HTML are validated. Python is checked for syntax errors, undefined names and unused imports with the standard library (`src/python-check.py`); shell with `bash -n`, YAML with prettier's parser, Go with `gofmt -e`. When ruff, shellcheck or yamllint are installed (e.g. `sudo pacman -S ruff shellcheck yamllint`), Dash uses them instead for many more rules. Errors are underlined in the editor, and the **Problems** tab in the bottom panel (Ctrl+Shift+M, or click the ⊗ ⚠ counter in the status bar) lists them for every open file; click one to jump to its line and column. F8 jumps to the next problem.
 - **Read-only**: the lock in the editor bar, the status bar or the Explorer menu makes a file read-only, as the VS Code "read-only" extensions do. Dash remembers it per file.
 - The status bar shows the size of the open file.
 - **Generate file tree** (Explorer menu on a folder) produces a text tree you can copy, leaving out `.git`, `node_modules` and similar folders.
+- **Download / Upload** in the Explorer menu work as in the Browse Files view below; files dropped from your computer onto the tree are uploaded to that folder.
+
+### Browse Files (browse, download, upload)
+- A tree of **Home**, **This computer** (`/`), every SSH profile (its default folder, else its home) and folders you add with **Go to folder…** (⌖) or **Add to Places**. **Show parent folder** moves a place up one level. Click a file to open it in the viewer or editor.
+- **Download**: a file downloads as is; a folder downloads as a ZIP built while it streams (SSH folders are packed with `tar` on that machine). You can leave out `node_modules`, `.git`, `.venv` and similar folders. Symbolic links are skipped, and files that cannot be read are listed in `_skipped-by-dash.txt` inside the ZIP.
+- **Upload**: the ⤒ button or menu (files or a whole folder), or drag files and folders from your computer onto a folder. A progress card shows each file, with Cancel. Uploads go to a temporary name and are renamed only when complete; an existing file is replaced only after you choose Replace.
 
 ### Search
 - **Ctrl+Shift+F** searches the text of every file in the current folder, as in VS Code (inside a terminal the same key still opens the terminal's find box). Text selected in the editor fills the search box.

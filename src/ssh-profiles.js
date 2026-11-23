@@ -32,12 +32,14 @@ function argv(p, dir = p.remoteDir) {
 
 // Lệnh không tương tác (duyệt file, đọc/ghi): dùng chung một kết nối (ControlMaster) cho nhanh,
 // BatchMode để báo lỗi ngay thay vì treo chờ mật khẩu (chỉ hỗ trợ khoá / ssh-agent).
+// macOS: $TMPDIR (/var/folders/…) quá dài cho socket Unix (tối đa 104 ký tự) nên dùng /tmp.
+const CONTROL_DIR = process.platform === "darwin" ? "/tmp" : os.tmpdir();
 function execArgs(p, command) {
   return [
     "-o", "BatchMode=yes",
     "-o", "ConnectTimeout=10",
     "-o", "ControlMaster=auto",
-    "-o", `ControlPath=${path.join(os.tmpdir(), "dash-ssh-%C")}`,
+    "-o", `ControlPath=${path.join(CONTROL_DIR, "dash-ssh-%C")}`,
     "-o", "ControlPersist=10m",
     ...options(p),
     target(p),

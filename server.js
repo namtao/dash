@@ -31,6 +31,7 @@ const cryptoPrices = require("./src/crypto-prices");
 const auth = require("./src/auth");
 const peerGuard = require("./src/peer-guard");
 const tailscale = require("./src/tailscale");
+const transfer = require("./src/transfer");
 const { WebSocketServer } = require("ws");
 
 const PUBLIC_DIR = path.join(__dirname, "public");
@@ -343,7 +344,18 @@ route("POST", "/api/files/rename", async (req) => {
   return files.rename(b.from, b.to);
 });
 route("POST", "/api/files/delete", async (req) => files.remove((await readBody(req)).path));
-route("GET", "/api/files/home", () => ({ home: require("os").homedir(), projectsRoot: store.load().settings.projectsRoot }));
+route("GET", "/api/files/home", async (req, p, url) => {
+  const id = url.searchParams.get("ssh");
+  if (id) return { home: await transfer.sshHome(id) };
+  return { home: require("os").homedir(), projectsRoot: store.load().settings.projectsRoot };
+});
+route("GET", "/api/files/stat", (req, p, url) => transfer.stat(url.searchParams.get("path")));
+// Tải về: file gửi nguyên, thư mục nén ZIP ngay khi gửi (skip=1: bỏ node_modules, .git, .venv…)
+route("GET", "/api/files/download", (req, p, url, res) => transfer.download(url.searchParams.get("path"), res, { skipHeavy: url.searchParams.get("skip") === "1" }));
+// Tải lên: thân request là nội dung file (không phải JSON), ghi file tạm rồi đổi tên
+route("PUT", "/api/files/upload", (req, p, url) =>
+  transfer.upload(url.searchParams.get("path"), req, { overwrite: url.searchParams.get("overwrite") === "1", mtime: Number(url.searchParams.get("mtime")) || 0 })
+);
 
 // ---------- Git ----------
 route("GET", "/api/git/status", (req, p, url) => git.status(url.searchParams.get("dir")));

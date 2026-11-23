@@ -79,10 +79,10 @@
     const name = await W.prompt(isDir ? "New folder" : "New file", "", { label: `In ${W.shortPath(dir)}` });
     if (!name) return;
     const target = join(dir, name.trim());
-    await api("POST", "/api/files/create", { path: target, dir: isDir }).catch((e) => toast(e.message, "error"));
+    if (!(await guarded(() => api("POST", "/api/files/create", { path: target, dir: isDir })))) return;
     open.add(dir);
     saveOpen();
-    await refresh();
+    W.emit("files:changed", dir);
     if (!isDir) openFile(target);
   }
 
@@ -93,7 +93,7 @@
     if (await guarded(() => api("POST", "/api/files/rename", { from: p, to }))) {
       const t = W.findTab(`file:${p}`);
       if (t) W.closeTab(t.id, { force: false });
-      refresh();
+      W.emit("files:changed", p);
     }
   }
 
@@ -102,9 +102,11 @@
     if (await guarded(() => api("POST", "/api/files/delete", { path: p }), "Deleted")) {
       const t = W.findTab(`file:${p}`);
       if (t) W.closeTab(t.id, { force: true });
-      refresh();
+      W.emit("files:changed", p);
     }
   }
+  // Dùng chung với view Browse Files (file-manager.js)
+  W.fileOps = { newItem, rename: renameItem, remove: deleteItem };
 
   function mount(body, actions) {
     root = body;
@@ -158,6 +160,11 @@
         { label: "Open terminal here", run: () => W.term.create({ cwd: dir }) },
         ...(isDir ? [{ label: "Find in folder…", run: () => W.searchIn?.(p) }] : []),
         { label: "Generate file tree", run: () => fileTree(isDir ? p : dir) },
+        { sep: true },
+        { label: isDir ? "Download as ZIP…" : "Download", run: () => W.download(p, isDir) },
+        { label: "Upload files here…", run: () => W.uploadPick(dir, false) },
+        { label: "Upload folder here…", run: () => W.uploadPick(dir, true) },
+        { sep: true },
         ...(!isDir ? [{ label: isReadonly(p) ? "Allow editing" : "Make read-only", run: () => { const t = W.findTab(`file:${p}`); if (t?.inst?.toggleReadonly) t.inst.toggleReadonly(); else setReadonly(p, !isReadonly(p)); } }] : []),
         { label: "Ask Claude about this", run: () => W.claudeMention?.(p) },
         { label: "Copy path", run: () => navigator.clipboard?.writeText(p) },
@@ -178,6 +185,8 @@
       const row = e.target.closest(".tree-row[data-path]");
       if (row) e.dataTransfer.setData("text/plain", row.dataset.path);
     });
+    // kéo file / thư mục từ máy đang dùng vào cây để tải lên thư mục đó
+    W.uploadDropZone(tree, (row) => (!row ? W.folder : row.dataset.dir === "1" ? row.dataset.path : dirOf(row.dataset.path)));
     refresh(false);
   }
 
@@ -311,21 +320,16 @@
   }
 
   const MAX_ROWS = 5000;
-  function gridHtml(rows, { header = true, letters = false } = {}) {
+  function gridHtml(rows) {
     const cols = Math.max(0, ...rows.map((r) => r.length));
-    const colName = (i) => {
-      let s = "";
-      for (i++; i > 0; i = Math.floor((i - 1) / 26)) s = String.fromCharCode(65 + ((i - 1) % 26)) + s;
-      return s;
-    };
-    const head = letters ? Array.from({ length: cols }, (_, i) => colName(i)) : header ? rows[0] || [] : [];
-    const body = (letters || !header ? rows : rows.slice(1)).slice(0, MAX_ROWS);
+    const head = rows[0] || [];
+    const body = rows.slice(1, MAX_ROWS + 1);
     return `<table class="rgrid"><thead><tr><th class="rn"></th>${Array.from({ length: cols }, (_, i) => `<th>${esc(head[i] ?? "")}</th>`).join("")}</tr></thead><tbody>${body
       .map((r, n) => `<tr><td class="rn">${n + 1}</td>${Array.from({ length: cols }, (_, i) => `<td title="${esc(r[i] ?? "")}">${esc(r[i] ?? "")}</td>`).join("")}</tr>`)
-      .join("")}</tbody></table>${rows.length > MAX_ROWS ? `<div class="empty faint">Showing the first ${MAX_ROWS} rows of ${rows.length}.</div>` : ""}`;
+      .join("")}</tbody></table>${rows.length > MAX_ROWS + 1 ? `<div class="empty faint">Showing the first ${MAX_ROWS} rows of ${rows.length - 1}.</div>` : ""}`;
   }
 
-  // Trình xem cho file không sửa bằng editor: ảnh, PDF, CSV, Word (.docx), Excel (.xlsx)
+  // Trình xem cho file không sửa bằng editor: ảnh, PDF, CSV, Word (.docx); Excel (.xlsx) sửa được ô (spreadsheet.js)
   function createViewer(host, tab, p, kind) {
     host.classList.add("code-host");
     const textable = kind === "csv" || /\.svg$/i.test(p);
@@ -334,14 +338,18 @@
         <button class="btn sm ghost" data-v="reload" title="Reload">↻</button></span></div>
       <div class="viewer viewer-${kind}"><div class="loading"><span class="spinner"></span></div></div>`;
     const box = $(".viewer", host);
-    const st = { size: null, url: null };
+    const st = { size: null, url: null, sheet: null };
     async function load() {
+      st.sheet = null;
+      W.markDirty();
       box.innerHTML = `<div class="loading"><span class="spinner"></span></div>`;
       try {
         if (kind === "unsupported") {
           box.innerHTML = `<div class="empty">This old Office format cannot be previewed. Save it as .docx / .xlsx / .pdf to view it here.</div>`;
           return;
         }
+        // Excel sửa được: nhớ mtime lúc mở (lấy trước nội dung) để khi lưu biết file đã bị sửa ở nơi khác chưa
+        const mtime = kind === "xlsx" ? (await api("GET", `/api/files/stat?path=${encodeURIComponent(p)}`)).mtime : 0;
         const res = await fetch(rawUrl(p));
         if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `HTTP ${res.status}`);
         const blob = await res.blob();
@@ -359,28 +367,7 @@
           const r = await mammoth.convertToHtml({ arrayBuffer: await blob.arrayBuffer() });
           box.innerHTML = `<div class="doc-view md-body">${await sanitize(r.value)}</div>`;
         } else if (kind === "xlsx") {
-          await W.loadScript("/vendor/exceljs/exceljs.min.js");
-          const wb = new ExcelJS.Workbook();
-          await wb.xlsx.load(await blob.arrayBuffer());
-          const sheets = wb.worksheets.map((ws) => {
-            const rows = [];
-            const cols = Math.min(200, ws.actualColumnCount || ws.columnCount || 0);
-            ws.eachRow({ includeEmpty: true }, (row, n) => {
-              if (n > MAX_ROWS + 1) return;
-              rows[n - 1] = Array.from({ length: cols }, (_, i) => row.getCell(i + 1).text);
-            });
-            return { name: ws.name, rows: Array.from(rows, (r) => r || []) };
-          });
-          const show = (i) => {
-            $$(".sheet-tab", box).forEach((b, j) => b.classList.toggle("active", i === j));
-            $(".grid-view", box).innerHTML = sheets[i]?.rows.length ? gridHtml(sheets[i].rows, { letters: true }) : `<div class="empty faint">Empty sheet</div>`;
-          };
-          box.innerHTML = `<div class="sheet-tabs">${sheets.map((s, i) => `<button class="sheet-tab" data-sheet="${i}">${esc(s.name)}</button>`).join("")}</div><div class="grid-view"></div>`;
-          box.onclick = (e) => {
-            const b = e.target.closest("[data-sheet]");
-            if (b) show(Number(b.dataset.sheet));
-          };
-          show(0);
+          st.sheet = await W.mountSheet(box, blob, p, { mtime, onChange: () => W.markDirty() });
         }
         const img = $(".img-view img", box);
         if (img) img.onload = () => ($(".img-meta", box).textContent = `${img.naturalWidth} × ${img.naturalHeight} px · ${fmtSize(st.size)}`);
@@ -391,7 +378,10 @@
     host.addEventListener("click", (e) => {
       const b = e.target.closest("[data-v]");
       if (!b) return;
-      if (b.dataset.v === "reload") return load();
+      if (b.dataset.v === "reload") {
+        if (st.sheet?.isDirty()) return confirmDialog(`Discard your changes to ${W.base(p)} and reload it?`, { title: "Reload", ok: "Discard", danger: true }).then((ok) => ok && load());
+        return load();
+      }
       W.closeTab(tab.id, { force: true });
       openFile(p, { asText: true });
     });
@@ -400,7 +390,9 @@
       path: p,
       size: () => st.size,
       layout() {},
-      focus() {},
+      focus: () => $(".sheet-grid", box)?.focus(),
+      isDirty: () => Boolean(st.sheet?.isDirty()),
+      save: () => (st.sheet ? st.sheet.save() : true),
       dispose: () => st.url && URL.revokeObjectURL(st.url),
     };
   }
@@ -944,6 +936,7 @@
     if (root) refresh();
   });
   W.on("git:changed", () => root && refresh(false));
+  W.on("files:changed", () => root && refresh());
   W.on("icons", () => {
     if (root) paint();
     for (const t of W.tabs) if (t.persist?.kind === "file") t.icon = W.fileIcon(t.persist.data.path);

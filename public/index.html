@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />
     <script>/* iOS phóng to khi focus ô nhập chữ <16px; maximum-scale=1 tắt việc đó, iOS vẫn cho pinch zoom */ if (/iP(hone|ad|od)/.test(navigator.platform) || (navigator.maxTouchPoints > 1 && /Mac/.test(navigator.platform))) document.querySelector("meta[name=viewport]").content += ", maximum-scale=1";</script>
     <title>Dash</title>
     <link rel="manifest" href="/manifest.webmanifest" />
@@ -16,6 +16,21 @@
       try {
         if (JSON.parse(localStorage.getItem("dash:theme") || '"dark"') === "dark") document.documentElement.dataset.theme = "dark";
       } catch {}
+      // Giao diện điện thoại (html.m), quay ngang (html.m-land). Theo cỡ màn hình và hướng thật của máy, không theo khung
+      // nhìn: bàn phím ảo mở làm khung nhìn thấp hơn rộng, nếu dùng @media (orientation) sẽ nhảy sang bố cục ngang.
+      window.dashMobileMode = () => {
+        const touch = matchMedia("(pointer: coarse)").matches;
+        const phone = touch && Math.min(screen.width, screen.height) <= 520;
+        const m = innerWidth <= 768 || phone;
+        const o = screen.orientation?.type || (Math.abs(window.orientation) === 90 ? "landscape" : "portrait");
+        const land = m && phone && o.startsWith("landscape");
+        const c = document.documentElement.classList;
+        const changed = c.contains("m") !== m || c.contains("m-land") !== land;
+        c.toggle("m", m);
+        c.toggle("m-land", land);
+        return changed;
+      };
+      dashMobileMode();
     </script>
   </head>
   <body>
@@ -35,6 +50,7 @@
       </header>
 
       <div class="wb-body">
+        <nav class="mnav" id="mnav"></nav>
         <nav class="activitybar" id="activitybar"></nav>
 
         <aside class="sidebar-pane" id="sidebar">
@@ -59,6 +75,7 @@
         <section class="center" id="center">
           <div class="editor-group">
             <div class="tabbar" id="tabbar"></div>
+            <button class="m-open" id="m-open" title="Browse and open a file">＋ <span>Open file</span></button>
             <div class="editors" id="editors">
               <main id="main" class="main editor-host" data-tab="dashboard"></main>
             </div>
@@ -84,6 +101,7 @@
     <dialog id="modal" class="modal"></dialog>
     <div id="toasts" class="toasts" popover="manual"></div>
     <div id="ctxmenu" class="ctxmenu hidden"></div>
+    <div id="mdrawer" class="mdrawer"><div class="md-scrim" data-m="close"></div><aside class="md-panel"></aside></div>
 
     <script src="/vendor/xterm/lib/xterm.js"></script>
     <script src="/vendor/xterm-fit/addon-fit.js"></script>
@@ -97,6 +115,8 @@
     <script src="/js/terminal.js"></script>
     <script src="/js/history.js"></script>
     <script src="/js/explorer.js"></script>
+    <script src="/js/spreadsheet.js"></script>
+    <script src="/js/file-manager.js"></script>
     <script src="/js/search.js"></script>
     <script src="/js/scm.js"></script>
     <script src="/js/claude.js"></script>
@@ -107,6 +127,7 @@
     <script src="/js/settings.js"></script>
     <script src="/js/snippets.js"></script>
     <script src="/js/local-ai.js"></script>
+    <script src="/js/mobile.js"></script>
     <script>W.start();</script>
   </body>
 </html>

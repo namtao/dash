@@ -7,7 +7,7 @@
 // (bố cục, tab, terminal, phiên Claude, thư mục…) lưu riêng theo cửa sổ để không đè lên nhau.
 const WS_ID = new URLSearchParams(location.search).get("w") || "main";
 (() => {
-  const SCOPED = new Set(["layout", "folder", "tabs", "termGroups", "termActive", "claudeCurrent", "claudeDraft", "explorerOpen", "searchState"]);
+  const SCOPED = new Set(["layout", "folder", "tabs", "termGroups", "termActive", "claudeCurrent", "claudeDraft", "explorerOpen", "searchState", "mobileMode"]);
   const get = store.get;
   const set = store.set;
   const key = (k) => (WS_ID !== "main" && SCOPED.has(k) ? `${k}@${WS_ID}` : k);
@@ -32,8 +32,8 @@ const W = (() => {
     panelTab: L.panelTab || "terminal",
   };
   const saveLayout = () => store.set("layout", layout);
-  // Màn hình hẹp (điện thoại): side bar và Claude là lớp phủ, mỗi lúc chỉ mở một cái
-  const narrow = () => matchMedia("(max-width: 768px)").matches;
+  // Giao diện điện thoại (class html.m do index.html đặt): mỗi lúc chỉ hiện một vùng (terminal / Claude / editor), xem mobile.js
+  const narrow = () => document.documentElement.classList.contains("m");
   if (narrow()) layout.showSidebar = layout.showAux = false;
 
   const W = {
@@ -224,8 +224,9 @@ const W = (() => {
     return { refresh, close };
   };
 
-  // Hộp chọn thư mục: dự án, thư mục gần đây hoặc gõ đường dẫn (gợi ý thư mục con, Tab để đi vào)
-  W.pickFolder = async () => {
+  // Hộp chọn thư mục: dự án, thư mục gần đây hoặc gõ đường dẫn (gợi ý thư mục con, Tab để đi vào).
+  // pick: làm việc khác với thư mục đã chọn thay vì đặt làm thư mục hiện tại (vd. view Browse Files thêm vào Places)
+  W.pickFolder = async ({ pick, placeholder } = {}) => {
     const recent = store.get("recentFolders", []);
     const projects = (S.config?.projects || []).map((p) => ({ label: p.name, icon: ICON.projects, detail: shortPath(p.path), value: p.path, hint: "project" }));
     const items = [...projects, ...recent.filter((r) => !projects.some((p) => p.value === r)).map((r) => ({ label: W.base(r), detail: shortPath(r), value: r }))];
@@ -236,9 +237,10 @@ const W = (() => {
       const t = q.trim();
       return list.length && (t.endsWith("/") || t === "~") ? [{ label: "Open this folder", detail: t, value: t }, ...list] : list;
     };
-    const picked = await W.quickPick(items, { placeholder: "Pick a project or type a path (e.g. ~/Projects/foo, Tab completes)", allowCustom: true, suggest });
+    const picked = await W.quickPick(items, { placeholder: placeholder || "Pick a project or type a path (e.g. ~/Projects/foo, Tab completes)", allowCustom: true, suggest });
     if (!picked) return;
     const dir = (picked.startsWith("~") ? W.home + picked.slice(1) : picked).replace(/(.)\/+$/, "$1");
+    if (pick) return pick(dir);
     W.setFolder(dir);
     store.set("recentFolders", [dir, ...recent.filter((r) => r !== dir)].slice(0, 15));
   };
@@ -288,18 +290,113 @@ const W = (() => {
     W.views.set(id, { id, order: 50, ...def });
   };
 
-  function paintActivity() {
+  // ---------- thứ tự thanh điều hướng ----------
+  // Một thứ tự dùng chung cho activity bar (PC) và thanh điều hướng điện thoại, lưu ở server (workspace.navOrder)
+  // nên đổi trên máy nào cũng áp cho máy kia. "terminal" chỉ có trên điện thoại, "claude" là nút bật Claude.
+  // Mục chưa có trong danh sách đã lưu (view mới) giữ chỗ mặc định: đứng ngay sau mục đứng trước nó.
+  W.navItems = () => {
     const top = [...W.views.values()].filter((v) => !v.bottom).sort((a, b) => a.order - b.order);
+    const def = [
+      { id: "terminal", title: "Terminal", icon: ICON.terminal },
+      ...top.filter((v) => !v.afterClaude),
+      { id: "claude", title: "Claude", icon: ICON.claude },
+      ...top.filter((v) => v.afterClaude),
+    ];
+    const ids = def.map((x) => x.id);
+    const out = String(W.ws().navOrder || "")
+      .split(",")
+      .filter((id, i, a) => ids.includes(id) && a.indexOf(id) === i);
+    ids.forEach((id, i) => {
+      if (out.includes(id)) return;
+      const prev = ids.slice(0, i).reverse().find((x) => out.includes(x));
+      out.splice(prev ? out.indexOf(prev) + 1 : 0, 0, id);
+    });
+    return out.map((id) => def.find((x) => x.id === id));
+  };
+  W.saveNav = async (patch) => {
+    const ws = S.config?.workspace;
+    const old = ws && Object.fromEntries(Object.keys(patch).map((k) => [k, ws[k]]));
+    if (ws) Object.assign(ws, patch);
+    paintActivity();
+    W.emit("nav");
+    try {
+      await api("PUT", "/api/workspace", patch);
+    } catch (e) {
+      if (ws) Object.assign(ws, old);
+      paintActivity();
+      W.emit("nav");
+      toast(`Could not save the order: ${e.message}`, "error");
+    }
+  };
+  // Đưa mục `id` tới trước (after = false) hoặc sau mục `target` rồi lưu
+  W.moveNav = (id, target, after = false) => {
+    if (id === target) return;
+    const ids = W.navItems().map((x) => x.id).filter((x) => x !== id);
+    const i = ids.indexOf(target);
+    if (i < 0) return;
+    ids.splice(after ? i + 1 : i, 0, id);
+    W.saveNav({ navOrder: ids.join(",") });
+  };
+
+  function paintActivity() {
     const bottom = [...W.views.values()].filter((v) => v.bottom).sort((a, b) => a.order - b.order);
-    const after = top.filter((v) => v.afterClaude);
-    top.splice(0, top.length, ...top.filter((v) => !v.afterClaude));
     const btn = (v) => `<button class="ab-item ${layout.showSidebar && layout.view === v.id ? "active" : ""}" data-view-btn="${v.id}" title="${esc(v.title)}${v.key ? ` (${esc(W.keyFor(v.key) || "")})` : ""}">${v.icon}${v.badge ? `<span class="ab-badge">${esc(v.badge)}</span>` : ""}</button>`;
-    $("#activitybar").innerHTML = `<div class="ab-top">${top.map(btn).join("")}<button class="ab-item ${layout.showAux ? "active" : ""}" data-cmd="claude.toggle" title="Claude (${esc(W.keyFor("claude.toggle") || "")})">${ICON.claude}</button>${after.map(btn).join("")}</div><div class="ab-bottom">${bottom.map(btn).join("")}</div>`;
+    const claudeBtn = `<button class="ab-item ${layout.showAux ? "active" : ""}" data-cmd="claude.toggle" title="Claude (${esc(W.keyFor("claude.toggle") || "")})">${ICON.claude}</button>`;
+    const top = W.navItems()
+      .filter((x) => x.id !== "terminal")
+      .map((x) => (x.id === "claude" ? claudeBtn : btn(x)).replace("<button ", `<button draggable="true" data-nav="${x.id}" `));
+    $("#activitybar").innerHTML = `<div class="ab-top">${top.join("")}</div><div class="ab-bottom">${bottom.map(btn).join("")}</div>`;
+  }
+  // Kéo thả icon trên activity bar để đổi thứ tự
+  {
+    const bar = $("#activitybar");
+    let dragId = null;
+    const mark = (el, cls) => {
+      for (const x of $$(".ab-drop-before, .ab-drop-after", bar)) {
+        x.classList.toggle("ab-drop-before", false);
+        x.classList.toggle("ab-drop-after", false);
+      }
+      if (el) el.classList.add(cls);
+    };
+    const spot = (e) => {
+      const el = e.target.closest?.("[data-nav]");
+      if (!el || !dragId) return null;
+      const r = el.getBoundingClientRect();
+      return { el, after: e.clientY > r.top + r.height / 2 };
+    };
+    bar.addEventListener("dragstart", (e) => {
+      const el = e.target.closest?.("[data-nav]");
+      if (!el) return;
+      dragId = el.dataset.nav;
+      e.dataTransfer.effectAllowed = "move";
+      e.dataTransfer.setData("text/plain", dragId);
+      el.classList.add("ab-dragging");
+    });
+    bar.addEventListener("dragover", (e) => {
+      const s = spot(e);
+      if (!s) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+      mark(s.el, s.after ? "ab-drop-after" : "ab-drop-before");
+    });
+    bar.addEventListener("drop", (e) => {
+      const s = spot(e);
+      if (!s) return;
+      e.preventDefault();
+      mark(null);
+      W.moveNav(dragId, s.el.dataset.nav, s.after);
+    });
+    bar.addEventListener("dragend", () => {
+      dragId = null;
+      mark(null);
+      for (const x of $$(".ab-dragging", bar)) x.classList.toggle("ab-dragging", false);
+    });
   }
   W.paintActivity = paintActivity;
   W.setBadge = (id, text) => {
     const v = W.views.get(id);
-    if (!v || v.badge === text) return;
+    if (!v) return W.emit("badge", { id, text }); // vd. "claude": không phải view, thanh điều hướng điện thoại tự vẽ
+    if (v.badge === text) return;
     v.badge = text;
     paintActivity();
   };
@@ -312,8 +409,7 @@ const W = (() => {
       layout.showSidebar = false;
     } else {
       layout.view = id;
-      layout.showSidebar = true;
-      if (narrow()) layout.showAux = false;
+      layout.showSidebar = true; // điện thoại: side bar phủ lên trên, vùng bên dưới (Claude / terminal) giữ nguyên
     }
     saveLayout();
     applyLayout();
@@ -486,6 +582,8 @@ const W = (() => {
   }
   W.applyLayout = applyLayout;
   W.narrow = narrow;
+  // Màn cảm ứng: không tự focus ô nhập khi chuyển vùng, để bàn phím ảo không bật lên che màn hình
+  W.touch = () => matchMedia("(pointer: coarse)").matches;
   let relayoutRaf = 0;
   function relayout() {
     cancelAnimationFrame(relayoutRaf);
@@ -978,6 +1076,7 @@ const W = (() => {
     W.command("palette.show", "Show all commands", () => W.palette(), "Ctrl+Shift+P");
     W.command("file.quickOpen", "Go to file…", () => W.run("explorer.quickOpen"), "Ctrl+P", { when: notTerm });
     W.command("folder.open", "Open folder…", () => W.pickFolder(), "Ctrl+Alt+O");
+    W.command("layout.resetNav", "Reset activity bar order (drag icons to reorder)", () => W.saveNav({ navOrder: "" }));
     W.command("layout.toggleSidebar", "Toggle side bar", () => {
       layout.showSidebar = !layout.showSidebar;
       saveLayout();

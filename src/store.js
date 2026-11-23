@@ -44,6 +44,10 @@ const DEFAULT_WORKSPACE = {
   autoSaveDelay: 1000,
   claudeAutoUpdate: true,
   keybindings: {},
+  // Thứ tự mục trên activity bar / thanh điều hướng điện thoại (id, cách nhau dấu phẩy; trống = mặc định) và
+  // các mục ghim trên thanh điều hướng điện thoại. Lưu ở server để PC và điện thoại dùng chung.
+  navOrder: "",
+  mobileNav: "terminal,claude",
 };
 // AI chạy local (OpenAI-compatible như Cline: Ollama, LM Studio, llama.cpp…). Khoá API chỉ nằm ở server.
 const DEFAULT_AI = { baseUrl: "http://localhost:11434/v1", model: "", apiKey: "" };

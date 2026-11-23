@@ -369,7 +369,7 @@
             )
             .join("")}</div>`;
       })
-      .join("");
+      .join("") + `<button class="icon tl-new" data-cmd="terminal.new" title="New terminal">＋</button>`; // chỉ hiện trên điện thoại
   }
 
   // ---------- phím phụ cho điện thoại (như Termux): bàn phím ảo thiếu Esc, Tab, Ctrl, mũi tên… ----------
@@ -673,7 +673,7 @@
         <button class="icon" data-cmd="terminal.kill" title="Kill terminal (${esc(W.keyFor("terminal.kill"))})">🗑</button>`;
       requestAnimationFrame(() => {
         groups.find((g) => g.id === activeGroup)?.panes.forEach((id) => panes.get(id)?.resize());
-        panes.get(focused)?.term.focus();
+        if (!W.touch()) panes.get(focused)?.term.focus();
       });
     },
   });

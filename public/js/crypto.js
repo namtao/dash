@@ -150,7 +150,8 @@
   function schedule() {
     clearTimeout(timer);
     const next = () => (timer = setTimeout(schedule, Math.max(5, data?.refreshSec || 15) * 1000));
-    if (document.hidden) return next();
+    // điện thoại không hiện giá coin nên khỏi gọi; đổi sang màn lớn thì lượt sau tự nạp lại
+    if (document.hidden || W.narrow()) return next();
     load().finally(next);
   }
   document.addEventListener("visibilitychange", () => !document.hidden && schedule());

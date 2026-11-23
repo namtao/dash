@@ -121,4 +121,4 @@ async function exists(p) {
   }
 }
 
-module.exports = { isRemote, parse, exec, list, read, raw, write, create, rename, remove, index, exists };
+module.exports = { isRemote, parse, exec, stat, list, read, raw, write, create, rename, remove, index, exists };

@@ -139,6 +139,19 @@
   } else activate(state.active);
 })();
 
+// Bàn phím ảo trên iOS không thu nhỏ trang (Android đã co nhờ interactive-widget=resizes-content): khung con co theo
+// vùng còn thấy, và giữ trang ở đầu để iOS không đẩy cả khung lên khi focus ô nhập
+if (window.visualViewport && matchMedia("(pointer: coarse)").matches) {
+  const vv = window.visualViewport;
+  const fit = () => {
+    document.documentElement.style.setProperty("--vvh", `${Math.round(vv.height)}px`);
+    if (window.scrollY) window.scrollTo(0, 0);
+  };
+  vv.addEventListener("resize", fit);
+  vv.addEventListener("scroll", fit);
+  fit();
+}
+
 // Nền của khung ngoài theo theme sáng/tối
 window.addEventListener("storage", (e) => {
   if (e.key === "dash:theme") document.documentElement.classList.toggle("light", JSON.parse(e.newValue || '"dark"') !== "dark");
