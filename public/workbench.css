@@ -1015,7 +1015,27 @@ html.m .m-open {
   border: 0; border-left: 1px solid var(--wb-border); border-bottom: 1px solid var(--wb-border); background: var(--wb-tab);
   color: var(--accent-text); font: inherit; font-size: 12.5px; cursor: pointer;
 }
-html.m .stats { grid-template-columns: repeat(2, 1fr); }
+/* Overview trên điện thoại: số liệu một dòng, dự án thành danh sách gọn (tên + mô tả một dòng, nút chạy bên phải) */
+.m-stats { display: flex; flex-wrap: wrap; gap: 4px 14px; padding: 2px 2px 14px; font-size: 12.5px; color: var(--muted); }
+.m-stats b { color: var(--text); font-weight: 600; }
+.m-stats b.on { color: var(--green); }
+html.m #detail .grid { grid-template-columns: 1fr; gap: 8px; }
+html.m .pcard { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 10px; padding: 10px 10px 10px 12px; }
+html.m .pcard:hover { transform: none; }
+html.m .pcard .pc-top { grid-column: 1; }
+html.m .pcard:not(:has(.pc-desc)) .pc-top { grid-row: 1 / span 2; }
+html.m .pcard .pc-path, html.m .pcard .tags { display: none; }
+html.m .pcard .pc-desc { grid-column: 1; margin: 2px 0 0 16px; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+html.m .pcard .btn-group { grid-column: 2; grid-row: 1 / span 2; margin: 0 !important; flex-wrap: nowrap; }
+html.m .pcard .btn-group .btn { min-width: 38px; height: 36px; justify-content: center; font-size: 14px; }
+html.m .pcard .bl { display: none; }
+/* diff trên điện thoại: thanh trên cao hơn cho dễ bấm, bỏ dòng chú thích và nút đổi kiểu (luôn inline) */
+html.m .diff-bar { height: 40px; gap: 6px; padding: 0 4px 0 10px; }
+html.m .diff-bar .diff-path { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; text-align: left; }
+html.m .diff-bar .diff-hint, html.m .diff-bar [data-d="inline"] { display: none; }
+html.m .diff-bar .diff-actions { flex: none; }
+html.m .diff-bar .icon { min-width: 34px; height: 34px; font-size: 16px; }
+html.m .diff-bar .btn { height: 30px; }
 /* khung log: tab lệnh một hàng riêng, nút Wrap/Expand/… xuống hàng dưới thay vì đè lên tab */
 html.m .log-card .card-head { flex-wrap: wrap; padding: 10px 12px; }
 html.m .log-card .log-tabs { flex-basis: 100%; }
@@ -1096,3 +1116,22 @@ html[data-theme="dark"] .shadow-root-host {
 .cl-meta { font-size: 12px; color: var(--muted, inherit); }
 .cl-meta summary { cursor: pointer; }
 .cl-meta pre { max-height: 320px; overflow: auto; white-space: pre-wrap; font-size: 11px; }
+
+/* diff một cột trên điện thoại (mobile-diff.js) */
+.pdiff { overflow: auto; overscroll-behavior: contain; padding-bottom: 40px; font: 12px/1.55 var(--mono); background: var(--wb-editor); }
+.pd-sum { position: sticky; top: 0; z-index: 1; display: flex; gap: 10px; align-items: center; padding: 6px 12px; font: 12px var(--sans); color: var(--muted); background: var(--wb-panel); border-bottom: 1px solid var(--wb-border); }
+.pd-plus { color: var(--green); }
+.pd-minus { color: var(--red); }
+.pd-hunk { border-bottom: 1px solid var(--wb-border); }
+.pd-l { display: grid; grid-template-columns: 3.2em 1.3em minmax(0, 1fr); }
+.pd-n { padding-right: 6px; text-align: right; color: var(--faint); opacity: 0.7; user-select: none; }
+.pd-s { text-align: center; color: var(--faint); user-select: none; }
+.pd-t { padding-right: 8px; white-space: pre-wrap; overflow-wrap: anywhere; tab-size: 4; }
+.pd-l.add { background: color-mix(in srgb, var(--green) 13%, transparent); }
+.pd-l.del { background: color-mix(in srgb, var(--red) 13%, transparent); }
+.pd-l.add .pd-s, .pd-l.add .pd-n { color: var(--green); opacity: 1; }
+.pd-l.del .pd-s, .pd-l.del .pd-n { color: var(--red); opacity: 1; }
+.pd-l.add mark { background: color-mix(in srgb, var(--green) 38%, transparent); color: inherit; border-radius: 2px; }
+.pd-l.del mark { background: color-mix(in srgb, var(--red) 38%, transparent); color: inherit; border-radius: 2px; }
+.pd-gap { display: block; width: 100%; padding: 8px 12px; border: 0; border-bottom: 1px solid var(--wb-border); background: var(--wb-panel); color: var(--accent-text); font: 12px var(--mono); text-align: left; cursor: pointer; }
+.pd-gap:active { background: var(--wb-hover); }

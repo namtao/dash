@@ -338,8 +338,9 @@
 
   function createDiff(host, tab, repo, rel, mode, commit) {
     const inline = store.get("diffInline", false);
+    const phone = W.narrow();
     host.classList.add("code-host");
-    host.innerHTML = `<div class="crumbs diff-bar"><span>${esc(rel)}</span><span class="faint">${mode === "working" ? "Index ↔ Working tree (right side is editable, Ctrl+S saves)" : mode === "staged" ? "HEAD ↔ Index" : `${commit.slice(0, 7)}^ ↔ ${commit.slice(0, 7)}`}</span>
+    host.innerHTML = `<div class="crumbs diff-bar"><span class="diff-path" title="${esc(rel)}"><bdi>${esc(rel)}</bdi></span><span class="faint diff-hint">${mode === "working" ? "Index ↔ Working tree (right side is editable, Ctrl+S saves)" : mode === "staged" ? "HEAD ↔ Index" : `${commit.slice(0, 7)}^ ↔ ${commit.slice(0, 7)}`}</span>
       <span class="diff-actions"><button class="icon" data-d="prev" title="Previous change (Alt+F5)">↑</button><button class="icon" data-d="next" title="Next change (F7)">↓</button>
       <button class="icon" data-d="inline" title="Toggle inline / side by side">${inline ? "◫" : "▤"}</button>
       ${mode === "working" ? `<button class="btn sm" data-d="stage">Stage file</button>` : mode === "staged" ? `<button class="btn sm" data-d="unstage">Unstage file</button>` : ""}
@@ -355,6 +356,17 @@
       }
       if (d.binary) {
         $(".code-editor", host).innerHTML = `<div class="empty">Binary file</div>`;
+        return;
+      }
+      // Điện thoại: diff một cột của mobile-diff.js, chỉ để xem (sửa thì bấm Open file)
+      if (phone) {
+        const el = $(".code-editor", host);
+        const y = el.scrollTop;
+        el.classList.add("pdiff");
+        const n = W.mobileDiff.render(el, d.original, d.modified ?? "");
+        el.scrollTop = y;
+        tab.badge = n ? String(n) : "";
+        W.paintTabs();
         return;
       }
       const monaco = await W.monaco();
@@ -401,7 +413,10 @@
       const b = e.target.closest("[data-d]");
       if (!b) return;
       const a = b.dataset.d;
-      if (a === "next" || a === "prev") s.editor?.goToDiff?.(a === "next" ? "next" : "previous");
+      if (a === "next" || a === "prev") {
+        if (phone) W.mobileDiff.step($(".code-editor", host), a === "next" ? 1 : -1);
+        else s.editor?.goToDiff?.(a === "next" ? "next" : "previous");
+      }
       if (a === "inline") {
         const v = !store.get("diffInline", false);
         store.set("diffInline", v);

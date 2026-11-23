@@ -141,6 +141,8 @@ function fmtDuration(ms) {
 const fmtMem = (kb) => (kb >= 1048576 ? `${(kb / 1048576).toFixed(1)} GB` : `${Math.round(kb / 1024)} MB`);
 const ago = (t) => `${fmtDuration(Date.now() - t)} ago`;
 
+// html.m do index.html đặt theo cỡ màn hình thật, không đổi trong lúc chạy
+const isPhone = () => document.documentElement.classList.contains("m");
 const runOf = (key) => S.status.runs[key];
 const isRunning = (key) => Boolean(runOf(key)?.running);
 const portOpen = (port) => S.status.ports.includes(port);
@@ -244,10 +246,17 @@ function overviewTop() {
   const runs = Object.entries(S.status.runs).filter(([, r]) => r.running);
   const mem = runs.reduce((a, [, r]) => a + r.rssKB, 0);
   const ports = S.config.projects.flatMap((p) => p.commands.filter((c) => c.port && portOpen(c.port)));
+  const nPorts = new Set(ports.map((c) => c.port)).size;
+  // Điện thoại: số liệu gộp thành một dòng, khung "Running" chỉ hiện khi có tiến trình chạy
+  if (isPhone()) {
+    const stat = (v, label, cls = "") => `<span class="ms-item"><b class="${cls}">${v}</b> ${label}</span>`;
+    return `<div class="m-stats">${stat(S.config.projects.length, "projects")}${stat(runs.length, "running", runs.length ? "on" : "")}${stat(nPorts, "ports")}${stat(fmtMem(mem), "RAM")}</div>
+      ${runs.length ? `<div class="card section"><div class="card-head"><h3>Running</h3><div class="btn-group"><button class="btn sm danger" data-action="stop-all">■ Stop all</button></div></div><div id="running-table">${runningTable()}</div></div>` : ""}`;
+  }
   return `<div class="stats">
       <div class="card stat"><div class="label">Projects</div><div class="value">${S.config.projects.length}</div></div>
       <div class="card stat"><div class="label">Running processes</div><div class="value" style="color:var(--green)">${runs.length}</div></div>
-      <div class="card stat"><div class="label">Open ports</div><div class="value">${new Set(ports.map((c) => c.port)).size}</div></div>
+      <div class="card stat"><div class="label">Open ports</div><div class="value">${nPorts}</div></div>
       <div class="card stat"><div class="label">Memory used</div><div class="value">${fmtMem(mem)}</div></div>
     </div>
     <div class="card section">
@@ -317,9 +326,9 @@ function projectCard(p) {
       main
         ? `<div class="btn-group" style="margin-top:10px">${
             isRunning(key)
-              ? `<button class="btn sm danger" data-action="cmd-stop" data-pid="${esc(p.id)}" data-cid="${esc(main.id)}">■ ${esc(main.name)}</button>`
-              : `<button class="btn sm success" data-action="cmd-start" data-pid="${esc(p.id)}" data-cid="${esc(main.id)}">▶ ${esc(main.name)}</button>`
-          }${p.url ? `<button class="btn sm ghost" data-action="open-url" data-url="${esc(p.url)}">↗ Open web</button>` : ""}</div>`
+              ? `<button class="btn sm danger" data-action="cmd-stop" data-pid="${esc(p.id)}" data-cid="${esc(main.id)}" title="Stop ${esc(main.name)}">■ <span class="bl">${esc(main.name)}</span></button>`
+              : `<button class="btn sm success" data-action="cmd-start" data-pid="${esc(p.id)}" data-cid="${esc(main.id)}" title="Start ${esc(main.name)}">▶ <span class="bl">${esc(main.name)}</span></button>`
+          }${p.url ? `<button class="btn sm ghost" data-action="open-url" data-url="${esc(p.url)}" title="Open web">↗ <span class="bl">Open web</span></button>` : ""}</div>`
         : ""
     }
   </div>`;
