@@ -47,6 +47,14 @@
     };
   }
 
+  function loadWebgl(term) {
+    try {
+      const gl = new WebglAddon.WebglAddon();
+      gl.onContextLoss(() => gl.dispose());
+      term.loadAddon(gl);
+    } catch {}
+  }
+
   class Pane {
     constructor(info) {
       this.id = info.id;
@@ -82,16 +90,63 @@
       container.append(this.el);
       if (!this.opened) {
         this.term.open($(".term-host", this.el));
-        try {
-          const gl = new WebglAddon.WebglAddon();
-          gl.onContextLoss(() => gl.dispose());
-          this.term.loadAddon(gl);
-        } catch {}
+        loadWebgl(this.term);
         this.opened = true;
+        this.bindTouchScroll();
         this.ro.observe(this.el);
         W.send({ t: "term.attach", id: this.id });
       }
       this.resize();
+    }
+
+    // xterm 6 không gắn cử chỉ chạm cho vùng cuộn nên vuốt trên điện thoại không cuộn được: tự đổi vuốt thành cuộn dòng,
+    // có quán tính khi hất tay. Ứng dụng bắt chuột (Claude Code, vim…) hoặc màn hình phụ (less) thì giả lập con lăn
+    // để xterm gửi đúng mã con lăn / phím mũi tên như khi lăn chuột trên máy tính.
+    bindTouchScroll() {
+      const host = $(".term-host", this.el);
+      let lastX = 0, lastY = 0, lastT = 0, acc = 0, vel = 0, moved = false, raf = 0;
+      const lineH = () => ($(".xterm-screen", this.el)?.offsetHeight || 0) / this.term.rows || 16;
+      const scrollPx = (dy) => {
+        acc += dy;
+        const n = Math.trunc(acc / lineH());
+        if (!n) return;
+        acc -= n * lineH();
+        if (this.term.buffer.active.type === "normal" && this.term.modes.mouseTrackingMode === "none") return this.term.scrollLines(n);
+        const screen = $(".xterm-screen", this.el);
+        for (let i = 0; i < Math.abs(n); i++)
+          screen?.dispatchEvent(new WheelEvent("wheel", { deltaY: Math.sign(n), deltaMode: WheelEvent.DOM_DELTA_LINE, clientX: lastX, clientY: lastY, bubbles: true, cancelable: true }));
+      };
+      host.addEventListener("touchstart", (e) => {
+        cancelAnimationFrame(raf);
+        if (e.touches.length !== 1) return;
+        lastX = e.touches[0].clientX;
+        lastY = e.touches[0].clientY;
+        lastT = e.timeStamp;
+        acc = vel = 0;
+        moved = false;
+      }, { passive: true });
+      host.addEventListener("touchmove", (e) => {
+        if (e.touches.length !== 1) return;
+        const y = e.touches[0].clientY, dy = lastY - y;
+        if (!moved && Math.abs(dy) < 6) return;
+        moved = true;
+        e.preventDefault();
+        vel = dy / Math.max(1, e.timeStamp - lastT);
+        lastY = y;
+        lastT = e.timeStamp;
+        scrollPx(dy);
+      }, { passive: false });
+      host.addEventListener("touchend", () => {
+        if (!moved || Math.abs(vel) < 0.3) return;
+        let t = performance.now();
+        const step = (now) => {
+          scrollPx(vel * (now - t));
+          t = now;
+          vel *= 0.95;
+          if (Math.abs(vel) > 0.05) raf = requestAnimationFrame(step);
+        };
+        raf = requestAnimationFrame(step);
+      });
     }
 
     resize() {
@@ -258,10 +313,43 @@
     return p;
   }
 
+  // Số cột/dòng thật của ô terminal sắp mở, đo bằng một xterm ẩn cùng cỡ. PTY phải đúng cỡ ngay từ đầu: shell (zsh có
+  // prompt bên phải) vẽ lại prompt mỗi khi bề ngang đổi và để lại các dòng prompt thừa, cả dấu % của PROMPT_SP
+  function measureSize(inGroup, splitDir) {
+    const area = root && $(".term-area", root);
+    let w = area?.clientWidth || 0, h = area?.clientHeight || 0;
+    if (!w || !h) return { cols: 120, rows: 30 };
+    if (inGroup) {
+      const n = inGroup.panes.length + 1;
+      if ((splitDir || inGroup.dir) === "column") h = (h - (n - 1)) / n;
+      else w = (w - (n - 1)) / n;
+    }
+    const el = document.createElement("div");
+    el.className = "term-pane";
+    el.style.cssText = `position: fixed; left: 0; top: 0; visibility: hidden; box-sizing: border-box; width: ${w}px; height: ${h}px`;
+    el.innerHTML = `<div class="term-host"></div>`;
+    document.body.append(el);
+    const t = new Terminal(options()), fit = new FitAddon.FitAddon();
+    try {
+      t.loadAddon(fit);
+      t.open(el.firstChild);
+      loadWebgl(t); // WebGL làm tròn bề rộng ô theo điểm ảnh: đo cùng renderer với terminal thật
+      const d = fit.proposeDimensions();
+      if (d?.cols > 0 && d?.rows > 0) return { cols: d.cols, rows: d.rows };
+    } catch {
+    } finally {
+      t.dispose();
+      el.remove();
+    }
+    return { cols: 120, rows: 30 };
+  }
+
   async function create(opts = {}, { splitDir, inGroup } = {}) {
     let info;
     try {
-      info = await api("POST", "/api/terminals", { cwd: opts.cwd || W.folder, ssh: opts.ssh, cols: 120, rows: 30, ws: W.wsId });
+      W.showPanel("terminal");
+      const size = measureSize(inGroup, splitDir);
+      info = await api("POST", "/api/terminals", { cwd: opts.cwd || W.folder, ssh: opts.ssh, ...size, ws: W.wsId });
     } catch (e) {
       return toast(e.message, "error");
     }
@@ -336,8 +424,8 @@
         }
         const p = panes.get(id);
         if (p) {
+          p.el.style.flex = "1 1 0"; // đặt trước khi open() đo cỡ, không thì PTY nhận cỡ tạm 80 cột
           p.open(wrap);
-          p.el.style.flex = "1 1 0";
           p.el.classList.toggle("focused", id === focused);
         }
       });

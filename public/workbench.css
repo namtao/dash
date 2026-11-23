@@ -193,7 +193,7 @@ body.resizing iframe, body.resizing .xterm { pointer-events: none; }
 .term-keys button { height: 34px; min-width: 0; padding: 0; border: 1px solid var(--line); border-radius: 5px; background: var(--chip-bg); color: var(--text); font: 12px var(--mono); touch-action: manipulation; }
 .term-keys button:active { background: var(--wb-hover); }
 .term-keys button.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-text); }
-.term-area { flex: 1; min-width: 0; display: flex; }
+.term-area { flex: 1; min-width: 0; min-height: 0; display: flex; }
 .term-group { flex: 1; display: flex; min-width: 0; min-height: 0; }
 .term-group.row { flex-direction: row; }
 .term-group.column { flex-direction: column; }
