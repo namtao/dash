@@ -16,7 +16,8 @@
     splitDown: svg('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 12h18"/>'),
     resume: svg('<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/>'),
     grid: svg('<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>'),
-    theme: svg('<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/>'),
+    moon: svg('<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/>'),
+    sun: svg('<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>'),
     back: svg('<path d="m15 5-7 7 7 7"/>'),
     close: svg('<path d="M6 6l12 12M18 6 6 18"/>'),
     panel: svg('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 14h18"/>'),
@@ -141,7 +142,7 @@
         ${status.trim() ? `<div class="md-sec"><div class="md-sec-title">Status</div><div class="md-status">${status}</div></div>` : ""}
       </div>
       <div class="md-foot">
-        <button data-m="theme" title="Toggle light / dark theme">${IC.theme}<span>Theme</span></button>
+        <button data-m="theme" title="${W.isDark() ? "Switch to light theme" : "Switch to dark theme"}">${W.isDark() ? IC.sun : IC.moon}<span>Theme</span></button>
         ${bottom.map((v) => `<button data-m="view" data-id="${esc(v.id)}" title="${esc(v.title)}">${v.icon}<span>${esc(v.title)}</span></button>`).join("")}
       </div>`;
   }
