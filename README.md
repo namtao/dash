@@ -13,7 +13,34 @@ A local workspace for the projects on this machine, meant to replace a separate 
 
 It works on phones too: the side bar and Claude open as overlays and the activity bar moves to the bottom. On phones, the ✎ button next to **Views** in the Menu lets you choose which items sit on it (up to 5, e.g. Browse Files or Source Control) and move them up or down, in the same order as the desktop activity bar.
 
-The layout follows VS Code, and the dark theme is One Dark Pro Darker.
+The layout follows VS Code, and the dark theme is One Dark Pro Darker. A light theme is one click away (☀ / ☾ in the title bar, **Theme** in the phone Menu).
+
+![Dash overview: running processes and project cards](docs/screenshots/overview-dark.webp)
+
+## Screenshots
+
+The screenshots use demo projects and placeholder hosts. Every screen comes in both themes.
+
+### Desktop
+
+| | Dark | Light |
+|---|---|---|
+| **Overview**: all projects, running processes, ports and memory | ![Overview, dark](docs/screenshots/overview-dark.webp) | ![Overview, light](docs/screenshots/overview-light.webp) |
+| **Project**: commands, process stats and live logs | ![Project dashboard, dark](docs/screenshots/project-dark.webp) | ![Project dashboard, light](docs/screenshots/project-light.webp) |
+| **Explorer, editor and terminals** (split panes) | ![Editor and terminal, dark](docs/screenshots/editor-terminal-dark.webp) | ![Editor and terminal, light](docs/screenshots/editor-terminal-light.webp) |
+| **Source Control**: changes and side-by-side diff | ![Source Control, dark](docs/screenshots/source-control-dark.webp) | ![Source Control, light](docs/screenshots/source-control-light.webp) |
+| **Database**: schema tree, SQL editor and results | ![Database, dark](docs/screenshots/database-dark.webp) | ![Database, light](docs/screenshots/database-light.webp) |
+| **Search** in the current folder | ![Search, dark](docs/screenshots/search-dark.webp) | ![Search, light](docs/screenshots/search-light.webp) |
+| **Browse Files**: this machine and SSH hosts, with the CSV viewer | ![Browse Files, dark](docs/screenshots/browse-files-dark.webp) | ![Browse Files, light](docs/screenshots/browse-files-light.webp) |
+| **Markdown** with live preview | ![Markdown preview, dark](docs/screenshots/markdown-dark.webp) | ![Markdown preview, light](docs/screenshots/markdown-light.webp) |
+| **Settings** and SSH profiles | ![Settings, dark](docs/screenshots/settings-dark.webp) | ![Settings, light](docs/screenshots/settings-light.webp) |
+
+### Phone
+
+| | Overview | Terminal | Explorer | Diff | Menu |
+|---|---|---|---|---|---|
+| **Dark** | ![Phone overview, dark](docs/screenshots/mobile-overview-dark.webp) | ![Phone terminal, dark](docs/screenshots/mobile-terminal-dark.webp) | ![Phone explorer, dark](docs/screenshots/mobile-explorer-dark.webp) | ![Phone diff, dark](docs/screenshots/mobile-diff-dark.webp) | ![Phone menu, dark](docs/screenshots/mobile-menu-dark.webp) |
+| **Light** | ![Phone overview, light](docs/screenshots/mobile-overview-light.webp) | ![Phone terminal, light](docs/screenshots/mobile-terminal-light.webp) | ![Phone explorer, light](docs/screenshots/mobile-explorer-light.webp) | ![Phone diff, light](docs/screenshots/mobile-diff-light.webp) | ![Phone menu, light](docs/screenshots/mobile-menu-light.webp) |
 
 ## Install and run
 
