@@ -53,6 +53,26 @@
     };
   }
 
+  // Ô dán dự phòng: trên điện thoại nhấn giữ vào terminal không hiện menu Dán vì xterm vẽ bằng canvas
+  function pasteBox() {
+    return new Promise((resolve) => {
+      const m = openModal(
+        "Paste into terminal",
+        `<form id="term-paste"><label class="field full"><span>Long press the box and choose Paste</span><textarea name="v" class="mono" rows="5" autocapitalize="off" autocorrect="off" spellcheck="false"></textarea></label></form>`,
+        `<button class="btn" data-action="close-modal">Cancel</button><button class="btn primary" form="term-paste">Paste</button>`
+      );
+      const input = $("textarea", m);
+      input.focus();
+      let result = "";
+      $("#term-paste", m).onsubmit = (e) => {
+        e.preventDefault();
+        result = input.value;
+        closeModal();
+      };
+      m.addEventListener("close", () => resolve(result), { once: true });
+    });
+  }
+
   function loadWebgl(term) {
     try {
       const gl = new WebglAddon.WebglAddon();
@@ -197,12 +217,12 @@
     }
 
     async pasteClipboard() {
-      let text = "";
+      let text = null;
       try {
         text = await navigator.clipboard.readText();
-      } catch {
-        return toast("Clipboard access was blocked by the browser", "error");
-      }
+      } catch {}
+      // trình duyệt không cho đọc clipboard (Safari iOS, chưa cấp quyền…): mở ô để tự dán bằng menu của hệ điều hành
+      if (text == null) text = await pasteBox();
       this.paste(text);
     }
 
@@ -470,10 +490,10 @@
   // Ctrl / Alt bấm một lần là áp cho phím kế tiếp (gõ từ bàn phím ảo hay từ thanh này); bấm lại để bỏ.
   const mods = { ctrl: false, alt: false };
   const KEY_ROWS = [
-    ["esc", "/", "-", "|", "~", "home", "up", "end", "pgup"],
+    ["esc", "/", "-", "|", "~", "home", "up", "end", "pgup", "paste"],
     ["tab", "ctrl", "alt", "^c", "left", "down", "right", "pgdn", "enter"],
   ];
-  const KEY_LABEL = { esc: "Esc", tab: "Tab", ctrl: "Ctrl", alt: "Alt", "^c": "^C", home: "Home", end: "End", pgup: "PgUp", pgdn: "PgDn", up: "↑", down: "↓", left: "←", right: "→", enter: "⏎" };
+  const KEY_LABEL = { paste: "Paste", esc: "Esc", tab: "Tab", ctrl: "Ctrl", alt: "Alt", "^c": "^C", home: "Home", end: "End", pgup: "PgUp", pgdn: "PgDn", up: "↑", down: "↓", left: "←", right: "→", enter: "⏎" };
   const ARROW = { up: "A", down: "B", right: "C", left: "D", home: "H", end: "F" };
   const keysWanted = () => store.get("termKeys", matchMedia("(pointer: coarse)").matches);
 
@@ -515,6 +535,8 @@
   function pressKey(k) {
     const pane = panes.get(focused);
     if (!pane) return;
+    // đọc clipboard phải gọi ngay trong lần chạm thì Safari iOS mới cho
+    if (k === "paste") return pane.pasteClipboard();
     if (k === "ctrl" || k === "alt") {
       mods[k] = !mods[k];
       paintMods();

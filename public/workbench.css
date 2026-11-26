@@ -189,7 +189,9 @@ body.resizing iframe, body.resizing .xterm { pointer-events: none; }
 .term-wrap { display: flex; flex: 1; min-height: 0; }
 .term-keys { flex: none; display: flex; flex-direction: column; gap: 3px; padding: 4px; background: var(--wb-panel, var(--panel)); border-top: 1px solid var(--wb-border); user-select: none; -webkit-user-select: none; }
 .term-keys.hidden { display: none; }
-.term-keys-row { display: grid; grid-template-columns: repeat(9, 1fr); gap: 3px; }
+.term-keys-row { display: grid; grid-template-columns: repeat(10, 1fr); gap: 3px; }
+.term-keys button[data-key=enter] { grid-column: span 2; }
+.term-keys button[data-key=paste] { font-size: 10.5px; }
 .term-keys button { height: 34px; min-width: 0; padding: 0; border: 1px solid var(--line); border-radius: 5px; background: var(--chip-bg); color: var(--text); font: 12px var(--mono); touch-action: manipulation; }
 .term-keys button:active { background: var(--wb-hover); }
 .term-keys button.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-text); }
