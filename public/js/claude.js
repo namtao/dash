@@ -210,8 +210,10 @@
         if (/^<(command-|local-command|system-reminder)/.test(text.trim())) return;
         // Nội dung skill / ngữ cảnh do Claude Code tự chèn (isMeta): thu gọn thành một dòng, bấm mới mở
         const skill = text.match(/^\s*Base directory for this skill:\s*\S*\/([^/\s]+)\/?\s*$/m);
-        if (m.isMeta || skill) {
-          add(s, `<details class="cl-meta"><summary>${skill ? `⚡ Skill loaded: <b>${esc(skill[1])}</b>` : "Context added by Claude Code"} <span class="faint">(${text.length.toLocaleString("en-US")} chars)</span></summary><pre>${esc(text)}</pre></details>`, "cl-meta-row");
+        // Bản tóm tắt sau khi compact (tự động hoặc /compact): cũng thu gọn thành một dòng
+        const summary = m.isCompactSummary || /^\s*This session is being continued from a previous conversation/.test(text);
+        if (m.isMeta || skill || summary) {
+          add(s, `<details class="cl-meta"><summary>${skill ? `⚡ Skill loaded: <b>${esc(skill[1])}</b>` : summary ? "Conversation summary (compacted)" : "Context added by Claude Code"} <span class="faint">(${text.length.toLocaleString("en-US")} chars)</span></summary><pre>${esc(text)}</pre></details>`, "cl-meta-row");
           scrollDown(s, true);
           return;
         }

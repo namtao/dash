@@ -416,8 +416,9 @@ async function messages(sessionId, cwd) {
     // Nội dung skill / ngữ cảnh Claude Code tự chèn: hiện như một khối thu gọn thay vì cả trang chữ
     const first = blocks[0].kind === "text" ? blocks[0].text : "";
     const skill = first.match(/^\s*Base directory for this skill:\s*\S*\/([^/\s]+)\/?\s*$/m);
-    if (m.type === "user" && (m.isMeta || skill)) {
-      blocks.splice(0, blocks.length, { kind: "tool", name: skill ? "Skill loaded" : "Context added by Claude Code", hint: skill ? skill[1] : "", text: blocks.map((b) => b.text).join("\n") });
+    const summary = m.isCompactSummary || /^\s*This session is being continued from a previous conversation/.test(first);
+    if (m.type === "user" && (m.isMeta || skill || summary)) {
+      blocks.splice(0, blocks.length, { kind: "tool", name: skill ? "Skill loaded" : summary ? "Conversation summary (compacted)" : "Context added by Claude Code", hint: skill ? skill[1] : "", text: blocks.map((b) => b.text).join("\n") });
     }
     const role = m.type === "user" && blocks.every((b) => b.kind === "result") ? "assistant" : m.type;
     const last = out[out.length - 1];
