@@ -153,6 +153,13 @@ route("PUT", "/api/workspace/background", async (req, p, url) => {
   await fs.promises.writeFile(file, Buffer.concat(chunks));
   return store.updateSection("workspace", { ...store.load().workspace, background: file });
 });
+// Ảnh nền đang chọn (file trên máy Dash). Cho trình duyệt cache: mỗi tab dự án / lần tải lại không phải tải lại ảnh, nên
+// không nháy nền trống. Đường dẫn ảnh nằm trong ?v= nên đổi ảnh là đổi URL.
+route("GET", "/api/workspace/background", async (req, p, url, res) => {
+  const bg = String(store.load().workspace.background || "");
+  if (!bg || /^https?:\/\//i.test(bg) || !BG_EXT.includes(path.extname(bg).toLowerCase())) throw httpError(404, "No background image");
+  await sendRaw(res, bg, "sandbox; default-src 'none'", "private, max-age=31536000, immutable");
+});
 route("PUT", "/api/settings", async (req) => store.updateSettings(await readBody(req)));
 // Xuất toàn bộ cấu hình (không kèm mật khẩu / khoá API) thành file JSON tải về; không lưu hay gửi đi đâu
 route("GET", "/api/export", (req, p, url, res) => {
@@ -318,10 +325,10 @@ route("DELETE", "/api/history", async (req) => {
 // ---------- File ----------
 route("GET", "/api/files/list", (req, p, url) => files.list(url.searchParams.get("path"), { showHidden: url.searchParams.get("hidden") !== "0" }));
 route("GET", "/api/files/read", (req, p, url) => files.read(url.searchParams.get("path")));
-async function sendRaw(res, file, csp) {
+async function sendRaw(res, file, csp, cache = "no-store") {
   const buf = await files.raw(file);
   const ext = path.extname(file).toLowerCase();
-  const headers = { "Content-Type": MIME[ext] || "application/octet-stream", "Content-Length": buf.length, "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" };
+  const headers = { "Content-Type": MIME[ext] || "application/octet-stream", "Content-Length": buf.length, "Cache-Control": cache, "X-Content-Type-Options": "nosniff" };
   if (csp) headers["Content-Security-Policy"] = csp;
   res.writeHead(200, headers);
   res.end(buf);

@@ -1135,3 +1135,122 @@ html[data-theme="dark"] .shadow-root-host {
 .pd-l.del mark { background: color-mix(in srgb, var(--red) 38%, transparent); color: inherit; border-radius: 2px; }
 .pd-gap { display: block; width: 100%; padding: 8px 12px; border: 0; border-bottom: 1px solid var(--wb-border); background: var(--wb-panel); color: var(--accent-text); font: 12px var(--mono); text-align: left; cursor: pointer; }
 .pd-gap:active { background: var(--wb-hover); }
+
+/* ---------- Liquid glass (Settings → Appearance → Liquid glass, html.glass) ----------
+   Các khung là tấm kính trong mờ nổi trên ảnh nền (hoặc nền gradient khi không có ảnh). Lớp kính vẽ ở ::before chứ
+   không đặt backdrop-filter lên chính khung: backdrop-filter biến khung thành khối chứa của phần tử position: fixed bên
+   trong (ô gợi ý, menu), làm chúng lệch chỗ. */
+html.glass {
+  --glass-fill: rgba(255, 255, 255, 0.52);
+  --glass-pop: rgba(255, 255, 255, 0.74);
+  --glass-solid: rgba(248, 250, 255, 0.82);
+  --glass-edge: rgba(255, 255, 255, 0.72);
+  --glass-line: rgba(15, 23, 42, 0.09);
+  --glass-hl: inset 0 1px 0 rgba(255, 255, 255, 0.9), inset 0 -1px 0 rgba(255, 255, 255, 0.25), inset 0 0 18px rgba(255, 255, 255, 0.18);
+  --glass-drop: 0 14px 40px -14px rgba(20, 24, 40, 0.3), 0 2px 6px -2px rgba(20, 24, 40, 0.12);
+  --glass-sheen: linear-gradient(155deg, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.1) 32%, rgba(255, 255, 255, 0) 58%, rgba(255, 255, 255, 0.16));
+  --glass-blur: blur(14px) saturate(170%) brightness(1.04);
+  --glass-base: #e9ecf2;
+  /* sáng: loang nhiều màu pastel nhạt để chữ đen vẫn rõ */
+  --glass-wall: radial-gradient(at 12% 18%, #dfe4fe 0, transparent 48%), radial-gradient(at 88% 12%, #fbe1ef 0, transparent 44%),
+    radial-gradient(at 72% 88%, #d3f5fa 0, transparent 50%), radial-gradient(at 18% 92%, #fdf3d4 0, transparent 44%),
+    radial-gradient(at 50% 50%, #ebe5fe 0, transparent 60%), #f4f6fd;
+  --wb-title: transparent; --wb-activity: transparent; --wb-side: transparent; --wb-editor: transparent; --wb-panel: transparent;
+  --wb-status: transparent; --wb-tab: transparent; --term-bg: transparent; --log-bg: transparent; --bg: transparent;
+  --sidebar: transparent; --topbar: transparent;
+  --wb-tab-active: rgba(255, 255, 255, 0.55);
+  --wb-border: var(--glass-line);
+  --wb-hover: rgba(255, 255, 255, 0.45);
+  --wb-sel: rgba(37, 99, 235, 0.14);
+  --wb-input: rgba(255, 255, 255, 0.55);
+  --panel: rgba(255, 255, 255, 0.55);
+  --panel-2: rgba(255, 255, 255, 0.32);
+  --line: rgba(15, 23, 42, 0.1);
+  --line-2: rgba(15, 23, 42, 0.14);
+  --line-soft: rgba(15, 23, 42, 0.06);
+  --hover: rgba(255, 255, 255, 0.45);
+  --chip-bg: rgba(255, 255, 255, 0.45);
+  --row-hover: rgba(255, 255, 255, 0.35);
+  --selected: rgba(37, 99, 235, 0.08);
+}
+/* tối: kính xám trung tính (không ám xanh), mờ nhẹ để ảnh nền vẫn rõ hình */
+html.glass[data-theme="dark"] {
+  --glass-fill: rgba(14, 14, 16, 0.26);
+  --glass-pop: rgba(30, 30, 33, 0.8);
+  --glass-solid: rgba(24, 24, 27, 0.88);
+  --glass-edge: rgba(255, 255, 255, 0.12);
+  --glass-line: rgba(255, 255, 255, 0.07);
+  --glass-hl: inset 0 1px 0 rgba(255, 255, 255, 0.12), inset 0 -1px 0 rgba(255, 255, 255, 0.03);
+  --glass-drop: 0 16px 44px -14px rgba(0, 0, 0, 0.6), 0 2px 8px -2px rgba(0, 0, 0, 0.35);
+  --glass-sheen: linear-gradient(155deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0) 40%);
+  --glass-blur: blur(12px) saturate(150%);
+  --glass-base: #0c0c0e;
+  /* tối: xám sáng hơn trên toàn nền (không tối đặc), góc trên trái sáng nhất */
+  --glass-wall: radial-gradient(at 8% 4%, #5a5a63 0, transparent 55%), radial-gradient(at 86% 84%, #44444c 0, transparent 60%),
+    radial-gradient(at 80% 10%, #3c3c44 0, transparent 50%), radial-gradient(at 20% 90%, #3a3a42 0, transparent 55%), #2e2e34;
+  --wb-tab-active: rgba(255, 255, 255, 0.08);
+  --wb-hover: rgba(255, 255, 255, 0.07);
+  --wb-sel: rgba(82, 139, 255, 0.22);
+  --wb-input: rgba(0, 0, 0, 0.22);
+  --panel: rgba(255, 255, 255, 0.04);
+  --panel-2: rgba(255, 255, 255, 0.04);
+  --line: rgba(255, 255, 255, 0.09);
+  --line-2: rgba(255, 255, 255, 0.12);
+  --line-soft: rgba(255, 255, 255, 0.05);
+  --hover: rgba(255, 255, 255, 0.07);
+  --chip-bg: rgba(255, 255, 255, 0.07);
+  --row-hover: rgba(255, 255, 255, 0.04);
+  --selected: rgba(82, 139, 255, 0.1);
+}
+html.glass body { background: var(--glass-wall); background-attachment: fixed; }
+/* ảnh nền nằm dưới lớp kính, hiện đủ độ đậm; ảnh thu nhỏ (index.html) lót bên dưới trong lúc ảnh gốc đang giải mã */
+html.glass.has-bg body {
+  background: var(--bg-image) center / cover no-repeat fixed, var(--bg-thumb, none) center / cover no-repeat fixed, var(--glass-base);
+}
+
+/* tấm kính: khung chính + menu / hộp thoại nổi */
+html.glass :is(.titlebar, .activitybar, .sidebar-pane, .editor-group, .panel, .aux, .statusbar, .mnav, .toast, .modal, .palette, .ctxmenu, .suggest, .cl-suggest, .term-search),
+html.glass .md-panel { isolation: isolate; }
+html.glass :is(.titlebar, .activitybar, .sidebar-pane, .editor-group, .panel, .aux, .statusbar, .mnav, .toast) { position: relative; }
+html.glass :is(.titlebar, .activitybar, .sidebar-pane, .editor-group, .panel, .aux, .statusbar, .mnav, .md-panel, .toast, .modal, .palette, .ctxmenu, .suggest, .cl-suggest, .term-search)::before {
+  content: ""; position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none;
+  background: var(--glass-sheen), var(--glass-fill); box-shadow: var(--glass-hl);
+  -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
+}
+html.glass :is(.toast, .modal, .palette, .ctxmenu, .suggest, .cl-suggest, .term-search) { background: transparent; border-color: var(--glass-edge); }
+html.glass :is(.toast, .modal, .palette, .ctxmenu, .suggest, .cl-suggest, .term-search)::before { background: var(--glass-sheen), var(--glass-pop); }
+html.glass .toast { border-left-color: var(--accent); }
+html.glass .toast.error { border-left-color: var(--red); }
+html.glass .toast.ok { border-left-color: var(--green); }
+html.glass .modal::backdrop { background: rgba(0, 0, 0, 0.22); backdrop-filter: blur(6px) saturate(140%); }
+
+/* máy tính: các tấm kính nổi tách nhau, bo góc */
+html.glass:not(.m) .wb { padding: 8px; gap: 8px; }
+html.glass:not(.m) :is(.titlebar, .activitybar, .sidebar-pane, .editor-group, .panel, .aux, .statusbar) {
+  border: 1px solid var(--glass-edge); border-radius: 14px; box-shadow: var(--glass-drop); overflow: hidden;
+}
+html.glass:not(.m) .titlebar { height: 42px; }
+html.glass:not(.m) .statusbar { height: 26px; border-radius: 10px; }
+html.glass:not(.m) .activitybar { margin-right: 8px; }
+html.glass:not(.m) .sash { background: transparent; }
+html.glass:not(.m) .sash-v { width: 8px; margin: 0; }
+html.glass:not(.m) .sash-h { height: 8px; margin: 0; }
+html.glass:not(.m) .sash-v:hover, html.glass:not(.m) body.resizing .sash-v { background: linear-gradient(var(--accent), var(--accent)) center / 2px 60% no-repeat; }
+html.glass:not(.m) .sash-h:hover, html.glass:not(.m) body.resizing .sash-h { background: linear-gradient(var(--accent), var(--accent)) center / 60% 2px no-repeat; }
+html.glass:not(.m) .ab-item.active { border-left-color: transparent; }
+html.glass:not(.m) .ab-item.active::after {
+  content: ""; position: absolute; inset: 6px; z-index: -1; border-radius: 10px;
+  background: var(--wb-tab-active); box-shadow: var(--glass-hl);
+}
+html.glass .ab-item { isolation: isolate; }
+html.glass .ws-tab.active { background: var(--wb-tab-active); box-shadow: inset 0 2px 0 var(--accent), var(--glass-hl); }
+html.glass:not(.m) .ws-tab { border-radius: 9px; height: 28px; margin-top: 0; align-self: center; }
+html.glass:not(.m) .ws-tabs { align-items: center; }
+html.glass .tab.active { box-shadow: var(--glass-hl); }
+html.glass .term-pane { opacity: 1; }
+html.glass .xterm .xterm-viewport { background-color: transparent !important; }
+
+/* phần dính (sticky) cuộn đè lên nội dung: cần nền kính đặc hơn để chữ bên dưới không lẫn vào */
+html.glass :is(.scm-log.collapsed, .cm-chat-head, .cm-continue, .sheet-tabs, .pd-sum, .rgrid th, .rgrid td.rn, th, .term-list .tl-new) {
+  background: var(--glass-solid); -webkit-backdrop-filter: blur(18px) saturate(160%); backdrop-filter: blur(18px) saturate(160%);
+}

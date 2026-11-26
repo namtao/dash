@@ -52,6 +52,8 @@ const DEFAULT_WORKSPACE = {
   background: "",
   backgroundOpacity: 15,
   themeAuto: false,
+  // Giao diện kính (liquid glass): khung trong mờ nổi trên ảnh nền / nền gradient
+  glass: false,
 };
 // AI chạy local (OpenAI-compatible như Cline: Ollama, LM Studio, llama.cpp…). Khoá API chỉ nằm ở server.
 const DEFAULT_AI = { baseUrl: "http://localhost:11434/v1", model: "", apiKey: "" };

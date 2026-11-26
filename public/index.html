@@ -15,6 +15,13 @@
       // Áp theme trước khi vẽ trang để không bị nháy (mặc định One Dark Pro)
       try {
         if (JSON.parse(localStorage.getItem("dash:theme") || '"dark"') === "dark") document.documentElement.dataset.theme = "dark";
+        if (localStorage.getItem("dash:glass") === "1") {
+          const h = document.documentElement, bg = localStorage.getItem("dash:bg"), th = localStorage.getItem("dash:bgThumb");
+          h.classList.add("glass");
+          // Ảnh nền (đã cache) + ảnh thu nhỏ vẽ ngay bên dưới trong lúc ảnh gốc chưa giải mã xong
+          if (bg) h.classList.add("has-bg"), h.style.setProperty("--bg-image", `url(${JSON.stringify(bg)})`);
+          if (bg && th && localStorage.getItem("dash:bgThumbSrc") === bg) h.style.setProperty("--bg-thumb", `url(${JSON.stringify(th)})`);
+        }
       } catch {}
       // Giao diện điện thoại (html.m), quay ngang (html.m-land). Theo cỡ màn hình và hướng thật của máy, không theo khung
       // nhìn: bàn phím ảo mở làm khung nhìn thấp hơn rộng, nếu dùng @media (orientation) sẽ nhảy sang bố cục ngang.

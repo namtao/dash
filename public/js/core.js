@@ -891,7 +891,9 @@ const W = (() => {
   // One Dark Pro cho Monaco (cùng bảng màu với WezTerm/VS Code đang dùng)
   function defineThemes(monaco) {
     const c = { fg: "abb2bf", red: "e06c75", green: "98c379", yellow: "e5c07b", blue: "61afef", purple: "c678dd", cyan: "56b6c2", orange: "d19a66", comment: "7f848e", gray: "5c6370" };
-    monaco.editor.defineTheme("one-dark-pro", {
+    const themes = {};
+    const define = (name, t) => monaco.editor.defineTheme(name, (themes[name] = t));
+    define("one-dark-pro", {
       base: "vs-dark",
       inherit: true,
       rules: [
@@ -962,7 +964,7 @@ const W = (() => {
         "editorHoverWidget.border": "#3e4451",
       },
     });
-    monaco.editor.defineTheme("one-light", {
+    define("one-light", {
       base: "vs",
       inherit: true,
       rules: [
@@ -990,9 +992,27 @@ const W = (() => {
         "editorSuggestWidget.border": "#d1d5db",
       },
     });
+    // Bản cho liquid glass: nền editor / lề / minimap trong suốt để thấy lớp kính phía sau; dòng đang đứng mờ nhẹ
+    for (const [name, base, hl] of [["one-dark-pro", "vs-dark", "#ffffff0d"], ["one-light", "vs", "#0000000a"]])
+      monaco.editor.defineTheme(`${name}-glass`, {
+        ...themes[name],
+        base,
+        colors: {
+          ...themes[name].colors,
+          "editor.background": "#00000000",
+          "editorGutter.background": "#00000000",
+          "minimap.background": "#00000000",
+          "editorOverviewRuler.background": "#00000000",
+          "editorOverviewRuler.border": "#00000000",
+          "editor.lineHighlightBackground": hl,
+          "editor.lineHighlightBorder": "#00000000",
+          "editorStickyScroll.background": base === "vs" ? "#ffffffcc" : "#1c1c1ecc",
+        },
+      });
   }
   W.isDark = () => document.documentElement.dataset.theme === "dark";
-  W.monacoTheme = () => (W.isDark() ? "one-dark-pro" : "one-light");
+  W.isGlass = () => document.documentElement.classList.contains("glass");
+  W.monacoTheme = () => (W.isDark() ? "one-dark-pro" : "one-light") + (W.isGlass() ? "-glass" : "");
   document.addEventListener("dash:theme", () => {
     window.monaco?.editor.setTheme(W.monacoTheme());
     W.emit("theme");

@@ -8,39 +8,96 @@
     <link rel="icon" href="/icon.svg" />
     <meta name="theme-color" content="#21252b" />
     <style>
-      :root { color-scheme: dark; --bg: #282c34; --card: #21252b; --fg: #d7dae0; --muted: #8b93a1; --accent: #4d8af0; --err: #e06c75; }
-      html.light { color-scheme: light; --bg: #f3f4f6; --card: #fff; --fg: #24292f; --muted: #6b7280; --err: #c0392b; }
+      /* Màn khoá kiểu macOS Golden Gate: hình nền toàn màn (ảnh nền đã lưu, làm mờ; hoặc trời hoàng hôn / sương sớm trên vịnh),
+         đồng hồ lớn phía trên, avatar + ô mật khẩu dạng viên kính ở dưới, không có thẻ.
+         Trang này công khai nên chỉ dùng ảnh thu nhỏ trong trình duyệt, không tải ảnh gốc từ server. */
+      :root {
+        color-scheme: dark; --fg: #fff; --muted: rgba(255, 255, 255, 0.78); --accent: #4d8af0; --err: #ffb4a8;
+        --shadow: 0 1px 16px rgba(0, 0, 0, 0.3);
+        --pill: rgba(255, 255, 255, 0.16); --pill-edge: rgba(255, 255, 255, 0.3); --pill-hl: inset 0 1px 0 rgba(255, 255, 255, 0.35);
+        /* hoàng hôn: trời xanh đậm, chân trời cam cầu Golden Gate, mặt vịnh tối */
+        --wall: radial-gradient(ellipse 70% 38% at 30% 66%, rgba(240, 106, 52, 0.85) 0, transparent 70%),
+          radial-gradient(ellipse 55% 30% at 78% 62%, rgba(214, 72, 64, 0.6) 0, transparent 70%),
+          radial-gradient(ellipse 80% 22% at 50% 74%, rgba(255, 190, 130, 0.45) 0, transparent 70%),
+          linear-gradient(180deg, #0a1430 0%, #1d2b5c 34%, #6a4a78 56%, #c0603e 68%, #3a3550 78%, #0f1c2e 100%);
+      }
+      html.light {
+        color-scheme: light; --fg: #16202e; --muted: rgba(22, 32, 46, 0.72); --err: #b3261e;
+        --shadow: 0 1px 14px rgba(255, 255, 255, 0.55);
+        --pill: rgba(255, 255, 255, 0.5); --pill-edge: rgba(255, 255, 255, 0.8); --pill-hl: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+        /* sáng sớm: trời xanh nhạt, sương trắng, ánh cam nhẹ ở chân trời */
+        --wall: radial-gradient(ellipse 70% 30% at 34% 64%, rgba(246, 150, 100, 0.5) 0, transparent 70%),
+          radial-gradient(ellipse 90% 30% at 50% 80%, rgba(255, 255, 255, 0.85) 0, transparent 70%),
+          linear-gradient(180deg, #8fb6e2 0%, #bcd4ee 36%, #f2d8c8 60%, #f6e6dc 70%, #dfe7ef 84%, #cfdbe6 100%);
+      }
       * { box-sizing: border-box; }
-      body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: var(--bg); color: var(--fg); font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
-      form { width: min(340px, 92vw); background: var(--card); padding: 28px; border-radius: 10px; box-shadow: 0 8px 30px rgb(0 0 0 / 0.25); display: grid; gap: 12px; }
-      h1 { margin: 0; font-size: 18px; display: flex; align-items: center; gap: 10px; }
-      h1 img { width: 26px; height: 26px; }
-      label { display: grid; gap: 4px; font-size: 12px; color: var(--muted); }
-      input { font: inherit; padding: 9px 10px; border-radius: 6px; border: 1px solid color-mix(in srgb, var(--muted) 40%, transparent); background: var(--bg); color: var(--fg); }
-      input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
-      button { font: inherit; padding: 9px; border: 0; border-radius: 6px; background: var(--accent); color: #fff; cursor: pointer; }
-      button:disabled { opacity: 0.6; cursor: default; }
-      p { margin: 0; font-size: 13px; color: var(--muted); }
+      body { margin: 0; min-height: 100vh; min-height: 100dvh; color: var(--fg); font: 14px/1.5 -apple-system, system-ui, "Segoe UI", sans-serif; text-shadow: var(--shadow); }
+      body::before {
+        content: ""; position: fixed; inset: -60px; z-index: -1;
+        background: var(--thumb, linear-gradient(transparent, transparent)) center / cover no-repeat, var(--wall);
+        filter: blur(var(--wall-blur, 0px));
+      }
+      .clock { position: fixed; top: max(7vh, 24px); left: 0; right: 0; text-align: center; pointer-events: none; }
+      .clock .d { font-size: 19px; font-weight: 600; opacity: 0.92; }
+      .clock .t { font-size: clamp(84px, 15vw, 150px); font-weight: 600; line-height: 1; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; opacity: 0.9; }
+      form { position: fixed; left: 0; right: 0; bottom: max(8vh, 28px); width: min(300px, 88vw); margin: 0 auto; display: grid; gap: 10px; justify-items: center; text-align: center; }
+      .avatar { width: 64px; height: 64px; border-radius: 50%; display: grid; place-items: center; background: rgba(255, 255, 255, 0.9);
+        box-shadow: 0 8px 24px -6px rgba(0, 0, 0, 0.4); }
+      .avatar img { width: 38px; height: 38px; }
+      h1 { margin: 0 0 2px; font-size: 15px; font-weight: 600; }
+      label { display: block; width: 100%; }
+      .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+      /* viên kính lỏng: nền trong, mờ phía sau, viền sáng */
+      .pill { position: relative; width: 100%; border-radius: 999px; background: var(--pill); border: 1px solid var(--pill-edge); box-shadow: var(--pill-hl), 0 6px 20px -10px rgba(0, 0, 0, 0.35);
+        -webkit-backdrop-filter: blur(22px) saturate(180%); backdrop-filter: blur(22px) saturate(180%); }
+      .pill:focus-within { border-color: color-mix(in srgb, var(--accent) 70%, white); }
+      input { width: 100%; font: inherit; padding: 8px 40px; border: 0; border-radius: 999px; background: transparent; color: var(--fg); text-align: center; outline: none; }
+      input::placeholder { color: var(--muted); }
+      .small input { font-size: 12px; padding: 5px 16px; }
+      button { position: absolute; right: 4px; top: 50%; translate: 0 -50%; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 50%;
+        background: rgba(255, 255, 255, 0.28); color: var(--fg); cursor: pointer; display: grid; place-items: center; }
+      html.light button { background: rgba(22, 32, 46, 0.1); }
+      button:hover { background: var(--accent); color: #fff; }
+      button:disabled { opacity: 0.5; cursor: default; }
+      button svg { width: 14px; height: 14px; }
+      p { margin: 0; font-size: 12px; color: var(--muted); }
       .err { color: var(--err); min-height: 1.5em; }
+      @media (max-height: 560px) { .clock { display: none; } }
     </style>
     <script>
       try {
-        if (JSON.parse(localStorage.getItem("dash:theme") || '"dark"') !== "dark") document.documentElement.classList.add("light");
+        const h = document.documentElement;
+        if (JSON.parse(localStorage.getItem("dash:theme") || '"dark"') !== "dark") h.classList.add("light");
+        // ảnh nền người dùng đã chọn (bản thu nhỏ lưu trong trình duyệt), làm mờ như màn khoá macOS
+        const th = localStorage.getItem("dash:bgThumb");
+        if (th && th.startsWith("data:image/")) {
+          h.style.setProperty("--thumb", `url(${JSON.stringify(th)})`);
+          h.style.setProperty("--wall-blur", "28px");
+        }
       } catch {}
     </script>
   </head>
   <body>
+    <div class="clock" aria-hidden="true"><div class="d" id="date"></div><div class="t" id="time"></div></div>
     <form id="f">
-      <h1><img src="/icon.svg" alt="" />Dash</h1>
+      <div class="avatar"><img src="/icon.svg" alt="" /></div>
+      <h1>Dash</h1>
+      <label class="pill"><span class="sr">Password</span><input id="pw" type="password" autocomplete="current-password" placeholder="Enter Password" required autofocus />
+        <button id="go" aria-label="Sign in" title="Sign in"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h10M9 4l4 4-4 4" /></svg></button></label>
+      <label class="pill small"><span class="sr">Device name (optional)</span><input id="name" maxlength="60" placeholder="Device name (optional)" /></label>
       <p id="msg">Enter the Dash password to use this device.</p>
-      <label>Password<input id="pw" type="password" autocomplete="current-password" required autofocus /></label>
-      <label>Device name (optional)<input id="name" maxlength="60" placeholder="e.g. Work laptop" /></label>
-      <button id="go">Sign in</button>
       <p class="err" id="err" role="alert"></p>
     </form>
     <script>
       (async () => {
         const $ = (id) => document.getElementById(id);
+        const tick = () => {
+          const d = new Date();
+          $("time").textContent = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }).replace(/\s*[AP]M$/i, "");
+          $("date").textContent = d.toLocaleDateString([], { weekday: "long", day: "numeric", month: "long" });
+        };
+        tick();
+        setInterval(tick, 10000);
         // Chỉ quay lại đường dẫn cùng trang (chặn open redirect kiểu //evil.com)
         const raw = new URLSearchParams(location.search).get("next") || "/";
         const next = /^\/(?![/\\])/.test(raw) && !raw.startsWith("/login.html") ? raw : "/";

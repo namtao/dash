@@ -62,6 +62,12 @@ Dash is a local workspace (terminals, editor, git, Claude Code, databases, proje
   Use files in a temp folder for UI tests.
 - **Testing without touching the user's instance:** run a second server with
   `DASH_CONFIG=<copy of projects.json> DASH_STATE=<tmp file> PORT=8898 DASH_NO_AUTOSTART=1 node server.js`.
-  It still shares `logs/`; delete any test log folders afterwards.
+  It still shares `logs/`; delete any test log folders afterwards. Signing in to the test server (do this, don't guess):
+  1. Set a password before starting it. The auth file is `.dash-auth.json` next to `DASH_CONFIG`, and `src/auth.js`
+     needs a TTY: `(sleep 1; printf 'pw-test-12345\r'; sleep 1; printf 'pw-test-12345\r'; sleep 2) | DASH_CONFIG=<tmp>/cfg.json script -q /dev/null node src/auth.js`.
+  2. Start it with `DASH_LOOPBACK_ALLOW='^Google Chrome for Testing'` (add `|^curl$` for curl). lsof cuts the agent-browser
+     process name to `Google Chrome for Testing Helpe`, so peer-guard refuses it otherwise (`ERR_CONNECTION_RESET`).
+  3. In the browser open `/login.html`, run `fetch("/api/auth/login", {method: "POST", headers: {"X-Dash": "1",
+     "Content-Type": "application/json"}, body: JSON.stringify({password: "pw-test-12345", name: "test"})})`, then open `/index.html?w=`.
 - `W.showPanel()` / `W.showView()` turn the panel / side bar on. If startup must keep them hidden, reset the
   layout flag after calling them.

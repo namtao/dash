@@ -24,7 +24,11 @@
     black: "#383a42", red: "#e45649", green: "#50a14f", yellow: "#c18401", blue: "#4078f2", magenta: "#a626a4", cyan: "#0184bc", white: "#a0a1a7",
     brightBlack: "#696c77", brightRed: "#e45649", brightGreen: "#50a14f", brightYellow: "#c18401", brightBlue: "#4078f2", brightMagenta: "#a626a4", brightCyan: "#0184bc", brightWhite: "#ffffff",
   };
-  const termTheme = () => (W.isDark() ? THEME_DARK : THEME_LIGHT);
+  // Liquid glass: nền terminal trong suốt để thấy lớp kính của panel
+  const termTheme = () => {
+    const t = W.isDark() ? THEME_DARK : THEME_LIGHT;
+    return W.isGlass() ? { ...t, background: "#00000000" } : t;
+  };
 
   // Mẫu lệnh nguy hiểm khi dán (học từ smart paste của WezTerm)
   const DANGER = [/rm\s+-rf/i, /sudo\s+rm/i, /\bmkfs/i, /\bdd\s+if=/i, /\bshutdown\b/i, /\breboot\b/i, /docker\s+compose\s+down\s+-v/i, /docker\s+system\s+prune/i, /git\s+reset\s+--hard/i, /git\s+push\s+[^\n]*--force/i, /:\(\)\s*\{\s*:\|:&\s*\};:/];
@@ -39,6 +43,8 @@
       cursorBlink: ws.cursorBlink,
       scrollback: ws.scrollback,
       theme: termTheme(),
+      // phải bật trước khi open() và không đổi được sau đó, nên bật luôn để bật / tắt liquid glass không cần mở lại terminal
+      allowTransparency: true,
       allowProposedApi: true,
       macOptionIsMeta: true,
       rightClickSelectsWord: false,

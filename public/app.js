@@ -190,7 +190,8 @@ async function loadConfig() {
 // ---------- ảnh nền + theme sáng / tối tự động ----------
 // Ảnh nằm trên một lớp phủ mờ trên cùng, không nhận chuột (như extension "background" của VS Code), nên mọi khung
 // (terminal, Monaco, Claude…) đều thấy ảnh mà không phải đổi màu nền của từng khung.
-const bgUrl = (b) => (/^https?:\/\//i.test(b) ? b : `/api/files/raw?path=${encodeURIComponent(b)}`);
+// Ảnh trong máy đi qua /api/workspace/background (được cache), ?v= đổi theo đường dẫn nên đổi ảnh là tải ảnh mới
+const bgUrl = (b) => (/^https?:\/\//i.test(b) ? b : `/api/workspace/background?v=${encodeURIComponent(b)}`);
 const bgLuma = new Map();
 // Độ sáng trung bình 0..1 của ảnh (thu nhỏ còn 32×32). null khi không đọc được điểm ảnh (ảnh lỗi, ảnh từ site khác).
 function imageLuminance(src) {
@@ -218,17 +219,60 @@ function imageLuminance(src) {
     );
   return bgLuma.get(src);
 }
+// Ảnh thu nhỏ (JPEG ~960px) để lần mở sau / trang đăng nhập vẽ nền ngay, không chờ tải ảnh gốc. null với ảnh từ site khác.
+function imageThumb(src) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const w = Math.min(960, img.naturalWidth);
+        const c = Object.assign(document.createElement("canvas"), { width: w, height: Math.max(1, Math.round((img.naturalHeight * w) / img.naturalWidth)) });
+        c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+        resolve(c.toDataURL("image/jpeg", 0.7));
+      } catch {
+        resolve(null);
+      }
+    };
+    img.onerror = () => resolve(null);
+    img.src = src;
+  });
+}
 async function applyAppearance() {
   const ws = S.config?.workspace || {};
   const bg = String(ws.background || "").trim();
+  const root = document.documentElement;
+  // Liquid glass: ảnh là nền của trang, nằm dưới các khung kính, hiện đủ độ đậm. Nhớ ở localStorage để lần mở sau
+  // (và tab dự án mới, trang đăng nhập) áp trước khi vẽ, không nháy nền trắng / gradient.
+  const glass = !!ws.glass;
+  localStorage.setItem("dash:glass", glass ? "1" : "0");
+  if (root.classList.contains("glass") !== glass) {
+    root.classList.toggle("glass", glass);
+    applyTheme(); // terminal và Monaco đổi sang bảng màu nền trong suốt
+  }
+  const url = bg ? bgUrl(bg) : "";
+  if (url) localStorage.setItem("dash:bg", url);
+  else for (const k of ["dash:bg", "dash:bgThumb", "dash:bgThumbSrc"]) localStorage.removeItem(k);
+  root.classList.toggle("has-bg", glass && !!url);
+  if (glass && url) root.style.setProperty("--bg-image", `url(${JSON.stringify(url)})`);
+  else root.style.removeProperty("--bg-image");
+  if (!glass || localStorage.getItem("dash:bgThumbSrc") !== url) root.style.removeProperty("--bg-thumb");
+  // Không kính: ảnh nằm trên lớp phủ mờ trên cùng như cũ
   let layer = document.getElementById("bg-layer");
-  if (bg) {
+  if (url && !glass) {
     if (!layer) document.body.append((layer = Object.assign(document.createElement("div"), { id: "bg-layer" })));
-    layer.style.backgroundImage = `url(${JSON.stringify(bgUrl(bg))})`;
+    layer.style.backgroundImage = `url(${JSON.stringify(url)})`;
     layer.style.opacity = String((ws.backgroundOpacity || 15) / 100);
   } else layer?.remove();
+  if (url && localStorage.getItem("dash:bgThumbSrc") !== url)
+    imageThumb(url).then((t) => {
+      if (!t || localStorage.getItem("dash:bg") !== url) return;
+      try {
+        localStorage.setItem("dash:bgThumb", t);
+        localStorage.setItem("dash:bgThumbSrc", url);
+      } catch {}
+    });
   if (!ws.themeAuto) return;
-  const luma = bg ? await imageLuminance(bgUrl(bg)) : null;
+  const luma = url ? await imageLuminance(url) : null;
   const dark = luma == null ? matchMedia("(prefers-color-scheme: dark)").matches : luma < 0.5;
   if (store.get("theme", "dark") !== (dark ? "dark" : "light")) {
     store.set("theme", dark ? "dark" : "light");

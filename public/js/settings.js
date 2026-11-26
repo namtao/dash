@@ -8,6 +8,7 @@
       ["background", "Background image", "image", "Path of an image on the Dash machine, or an https:// URL. Empty = no background. “Choose image…” uploads one from this device."],
       ["backgroundOpacity", "Background strength (%)", "number", "How visible the image is over the workspace, 3 to 60. Around 10 to 20 keeps text easy to read."],
       ["themeAuto", "Auto dark / light theme", "bool", "Use the light theme on a bright background and the dark theme on a dark one. Without a background, or with an image from another site, follow the system setting. Pressing the theme button turns this off."],
+      ["glass", "Liquid glass", "bool", "Frosted, see-through panels floating over the background image, or over a soft color gradient when there is no image. The image shows at full strength behind the glass."],
     ]],
     ["Terminal", [
       ["shell", "Shell", "text", "Path of the shell for new terminals. zsh and bash get command history per folder."],
@@ -278,7 +279,7 @@
       clearTimeout(saveTimer);
       saveTimer = setTimeout(async () => {
         if (await guarded(() => api("PUT", "/api/workspace", { [el.dataset.key]: value }))) {
-          if (["background", "backgroundOpacity", "themeAuto"].includes(el.dataset.key)) return appearanceSaved("Setting saved", el.dataset.key === "background");
+          if (["background", "backgroundOpacity", "themeAuto", "glass"].includes(el.dataset.key)) return appearanceSaved("Setting saved", el.dataset.key === "background");
           await W.reloadConfig();
           toast("Setting saved", "ok", 1200);
         }
