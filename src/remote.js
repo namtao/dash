@@ -1,7 +1,7 @@
 // Thư mục trên máy SSH (đường dẫn ssh://<id hồ sơ>/đường/dẫn): liệt kê, đọc, ghi, tạo, đổi tên, xoá file
 // bằng lệnh ssh không tương tác. Chỉ dùng lệnh POSIX phổ biến (ls, cat, stat, find) để chạy được trên đa số máy.
 const path = require("path");
-const { execFile } = require("child_process");
+const { execFile, spawn } = require("child_process");
 const store = require("./store");
 const ssh = require("./ssh-profiles");
 
@@ -69,6 +69,18 @@ async function raw(p) {
   return exec(profile, `cat -- ${q(file)}`, { encoding: "buffer", timeout: 120000 });
 }
 
+// Một đoạn file từ xa dạng luồng (audio / video tua được): tail -c +N | head -c LEN chạy trên máy kia
+async function mediaStat(p) {
+  const { profile, dir: file } = parse(p);
+  return stat(profile, file);
+}
+function rangeStream(p, start, end) {
+  const { profile, dir: file } = parse(p);
+  const child = spawn("ssh", ssh.execArgs(profile, `tail -c +${start + 1} ${q(file)} | head -c ${end - start + 1}`), { stdio: ["ignore", "pipe", "ignore"] });
+  child.on("error", () => {});
+  return { stream: child.stdout, stop: () => child.kill() };
+}
+
 async function write(p, content, { mtime, force } = {}) {
   const { profile, id, dir: file } = parse(p);
   if (mtime && !force) {
@@ -121,4 +133,4 @@ async function exists(p) {
   }
 }
 
-module.exports = { isRemote, parse, exec, stat, list, read, raw, write, create, rename, remove, index, exists };
+module.exports = { isRemote, parse, exec, stat, list, read, raw, mediaStat, rangeStream, write, create, rename, remove, index, exists };

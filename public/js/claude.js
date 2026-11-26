@@ -385,7 +385,11 @@
     $(".cl-attach", root).innerHTML = pending.images.map((im, i) => `<span class="cl-att"><img src="data:${im.media_type};base64,${im.data}" /><button class="icon" data-rm-img="${i}">✕</button></span>`).join("");
   }
 
+  // Gửi lần đầu phải chờ tạo phiên (một nhịp mạng, chậm khi mở từ điện thoại) mà ô nhập chưa xoá, nên bấm Send / Enter
+  // lần nữa từng tạo phiên thứ hai với cùng tin nhắn. Khoá trong lúc chờ.
+  let creating = false;
   async function send() {
+    if (creating) return;
     const input = $(".cl-input", root);
     let text = input.value.trim();
     if (!text && !pending.images.length) return;
@@ -398,7 +402,16 @@
       return local();
     }
     let s = sessions.get(current);
-    if (!s || s.info.closed) s = await newSession();
+    if (!s || s.info.closed) {
+      creating = true;
+      $(".cl-input", root)?.classList.add("busy");
+      try {
+        s = await newSession();
+      } finally {
+        creating = false;
+        $(".cl-input", root)?.classList.remove("busy");
+      }
+    }
     if (!s) return;
     // Đính kèm file đang mở làm ngữ cảnh (như extension VS Code)
     const t = W.active;

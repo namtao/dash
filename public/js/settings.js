@@ -35,6 +35,9 @@
       ["claudeEffort", "Effort", ["", "low", "medium", "high", "xhigh", "max"], "Empty = Claude Code default."],
       ["usageRefreshSec", "Usage refresh (seconds)", "number", "How often the 5-hour / weekly limits are re-read. Reading them sends no prompt and uses no tokens. Minimum 30."],
       ["claudeAutoUpdate", "Update Claude Code automatically", "bool", "Runs `claude update` a few minutes after Dash starts and then once a day."],
+      ["claudeWarmup", "Warm up the 5-hour limit", "bool", "Sends a tiny prompt (Haiku, no tools) 5 hours before each reset time below, so the 5-hour limit resets at those times. If a window is still running, it waits for it to end. Dash must be running and the machine awake."],
+      ["claudeWarmupResets", "Reset times", "text", "HH:MM, comma-separated. 10:00, 15:00 → warmup at 05:00 and 10:00."],
+      ["claudeWarmupTz", "Time zone for reset times", "text", "IANA name such as Asia/Ho_Chi_Minh. Empty = this machine's time zone."],
     ]],
     ["Database", [
       ["sqlRowLimit", "Max rows per query", "number", "SELECT results are cut at this many rows."],
@@ -47,7 +50,7 @@
     const render = () => {
       const ws = W.ws();
       host.innerHTML = `<div class="settings">
-        <div class="settings-nav">${[...FIELDS.map(([s]) => s), "Claude Code updates", "Local AI", "Remote access", "Keyboard shortcuts", "Projects & server", "Export"].map((s) => `<a href="#" data-jump="${esc(s)}">${esc(s)}</a>`).join("")}</div>
+        <div class="settings-nav">${[...FIELDS.map(([s]) => s), "Claude Code updates", "Claude warmup", "Local AI", "Remote access", "Keyboard shortcuts", "Projects & server", "Export"].map((s) => `<a href="#" data-jump="${esc(s)}">${esc(s)}</a>`).join("")}</div>
         <div class="settings-body">
           <input class="settings-filter" type="search" placeholder="Search settings" />
           ${FIELDS.map(
@@ -66,6 +69,10 @@
           <section data-sec="Claude Code updates"><h2>Claude Code updates</h2>
             <div class="setting"><div class="setting-label"><b>Installed version</b><small class="cu-status">Checking…</small></div>
               <div class="setting-input"><button class="btn" data-cu="update">Update now</button></div></div>
+          </section>
+          <section data-sec="Claude warmup"><h2>Claude warmup</h2>
+            <div class="setting"><div class="setting-label"><b>Status</b><small class="cw-status" style="white-space:pre-line">Checking…</small></div>
+              <div class="setting-input"><button class="btn" data-cw="run" title="Send the warmup prompt now">Warm up now</button></div></div>
           </section>
           <section data-sec="Local AI"><h2>Local AI</h2>
             <p class="faint">An OpenAI-compatible server on your machine, as in Cline (Ollama: <code>http://localhost:11434/v1</code>, LM Studio: <code>http://localhost:1234/v1</code>, llama.cpp, vLLM…). Used by the AI chat view and by “Write commit message” in Source Control. Dash calls it from the server, so the API key never reaches the browser.</p>
@@ -95,6 +102,7 @@
         </div></div>`;
       paintKeys();
       paintUpdate();
+      paintWarmup();
       paintRemote();
     };
 
@@ -170,6 +178,23 @@
       if (!el) return;
       const r = force ? await api("POST", "/api/claude/update").catch((e) => ({ error: e.message })) : await api("GET", "/api/claude/version").catch((e) => ({ error: e.message }));
       el.textContent = `${r.version || "claude not found"}${r.lastCheck ? ` · last update check ${new Date(r.lastCheck).toLocaleString("en-GB")}` : ""}${r.error ? ` · ${r.error.split("\n").pop()}` : r.output && force ? ` · ${r.output.split("\n").pop()}` : ""}`;
+    }
+
+    async function paintWarmup(run) {
+      const el = $(".cw-status", host);
+      if (!el) return;
+      const r = run ? await api("POST", "/api/claude/warmup").catch((e) => ({ error: e.message })) : await api("GET", "/api/claude/warmup").catch((e) => ({ error: e.message }));
+      if (r.error) return (el.textContent = r.error);
+      const t = (ms) => new Date(ms).toLocaleString("en-GB", { timeZone: r.tz, hour: "2-digit", minute: "2-digit", day: "2-digit", month: "short" });
+      const last = r.runs[0];
+      const slot = r.slots.at(-1);
+      el.textContent = [
+        r.enabled ? (r.next ? `On · next warmup ${r.next.at} (resets ${r.next.reset}) · ${r.tz}` : "On · no valid reset time") : "Off",
+        slot && `${slot.key}: ${slot.status}${slot.note ? ` · ${slot.note}` : ""}`,
+        last && `Last run ${t(last.at)} · ${last.ok ? "ok" : "failed"}${last.resetsAt ? ` · window resets ${t(last.resetsAt)}` : ""}${last.ok ? "" : ` · ${last.output.split("\n").pop()}`}`,
+      ]
+        .filter(Boolean)
+        .join("\n");
     }
 
     async function testAi() {
@@ -281,6 +306,7 @@
         if (await guarded(() => api("PUT", "/api/workspace", { [el.dataset.key]: value }))) {
           if (["background", "backgroundOpacity", "themeAuto", "glass"].includes(el.dataset.key)) return appearanceSaved("Setting saved", el.dataset.key === "background");
           await W.reloadConfig();
+          if (el.dataset.key.startsWith("claudeWarmup")) paintWarmup();
           toast("Setting saved", "ok", 1200);
         }
       }, 150);
@@ -311,6 +337,12 @@
         cu.disabled = true;
         $(".cu-status", host).textContent = "Running claude update…";
         paintUpdate(true).finally(() => (cu.disabled = false));
+      }
+      const cw = e.target.closest("[data-cw]");
+      if (cw) {
+        cw.disabled = true;
+        $(".cw-status", host).textContent = "Sending the warmup prompt…";
+        paintWarmup(true).finally(() => (cw.disabled = false));
       }
       if (e.target.closest("[data-ai-test]")) testAi();
       const ra = e.target.closest("[data-ra-act]");

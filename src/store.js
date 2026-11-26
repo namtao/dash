@@ -43,6 +43,10 @@ const DEFAULT_WORKSPACE = {
   autoSave: true,
   autoSaveDelay: 1000,
   claudeAutoUpdate: true,
+  // Warmup hạn mức 5 giờ của Claude (claude-warmup.js): giờ muốn reset, cách nhau dấu phẩy; múi giờ IANA, trống = của máy
+  claudeWarmup: false,
+  claudeWarmupResets: "10:00, 15:00",
+  claudeWarmupTz: "",
   keybindings: {},
   // Thứ tự mục trên activity bar / thanh điều hướng điện thoại (id, cách nhau dấu phẩy; trống = mặc định) và
   // các mục ghim trên thanh điều hướng điện thoại. Lưu ở server để PC và điện thoại dùng chung.
@@ -182,6 +186,12 @@ function normalizeWorkspace(raw = {}) {
   out.sqlRowLimit = Math.min(100000, Math.max(10, Math.round(out.sqlRowLimit)));
   out.autoSaveDelay = Math.min(60000, Math.max(200, Math.round(out.autoSaveDelay)));
   out.backgroundOpacity = Math.min(60, Math.max(3, Math.round(out.backgroundOpacity)));
+  out.claudeWarmupResets = [...out.claudeWarmupResets.matchAll(/\b([01]?\d|2[0-3]):([0-5]\d)\b/g)].map((m) => `${m[1].padStart(2, "0")}:${m[2]}`).join(", ");
+  try {
+    if (out.claudeWarmupTz) new Intl.DateTimeFormat("en", { timeZone: out.claudeWarmupTz });
+  } catch {
+    out.claudeWarmupTz = ""; // tên múi giờ sai: dùng múi giờ của máy
+  }
   // Shell không có trên máy này (vd. cấu hình chép từ Linux sang macOS) thì dùng shell mặc định
   if (!isFile(out.shell)) out.shell = DEFAULT_WORKSPACE.shell;
   for (const [k, v] of Object.entries(out.keybindings)) if (typeof v !== "string") delete out.keybindings[k];

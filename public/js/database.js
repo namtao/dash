@@ -281,6 +281,8 @@
     };
   };
 
+  // Trạng thái xem của lưới kết quả: sắp xếp, lọc từng cột, dòng/cột đang chọn (chỉ số gốc, không đổi khi sắp xếp)
+  const newView = () => ({ sort: null, filters: {}, rows: new Set(), cols: new Set(), anchor: -1, colAnchor: -1 });
   function createSqlTab(host, tab, init) {
     const st = {
       conn: init.conn,
@@ -290,6 +292,8 @@
       cur: 0,
       changes: null, // { updates: Map(rowIdx -> Map(colIdx -> value)), deletes: Set(rowIdx), inserts: [array] }
       sel: { r: -1, c: -1 },
+      view: newView(),
+      order: [], // thứ tự dòng đang hiện (sau lọc + sắp xếp), là chỉ số dòng gốc
       running: false,
       disposed: false,
       split: store.get("sqlSplit", 0.45),
@@ -566,6 +570,7 @@
       $(".res-grid", host).classList.remove("busy");
       st.changes = { updates: new Map(), deletes: new Set(), inserts: [] };
       st.sel = { r: -1, c: -1 };
+      st.view = newView();
       W.markDirty();
       if (st.results.length) paintGrid();
     }
@@ -580,6 +585,47 @@
       return u && u.has(c) ? u.get(c) : R.rows[r][c];
     };
 
+    // So sánh để sắp xếp / lọc: NULL luôn ở cuối, số so theo số, còn lại so chữ (không phân biệt hoa thường, 2 < 10)
+    const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: "accent" });
+    const isNum = (v) => typeof v === "number" || (typeof v === "string" && v.trim() !== "" && !isNaN(Number(v)));
+    function sortCmp(x, y, dir = 1) {
+      const xn = x === null || x === undefined;
+      const yn = y === null || y === undefined;
+      if (xn || yn) return xn === yn ? 0 : xn ? 1 : -1;
+      if (isNum(x) && isNum(y)) return (Number(x) - Number(y)) * dir;
+      return collator.compare(cellText(x), cellText(y)) * dir;
+    }
+    // Ô lọc: chữ thường = chứa (không phân biệt hoa thường), !abc = không chứa, NULL / !NULL,
+    // hoặc so sánh =, !=, <>, >, <, >=, <= (số so theo số)
+    const FILTER_HELP = "Contains (case-insensitive). Also: !text, =value, !=value, >10, <=2024-01-01, NULL, !NULL";
+    function matcher(raw) {
+      const f = raw.trim();
+      if (/^null$/i.test(f)) return (v) => v === null;
+      if (/^(!|not\s+)null$/i.test(f)) return (v) => v !== null && v !== undefined;
+      const m = f.match(/^(>=|<=|!=|<>|=|>|<)\s*(.*)$/);
+      if (m) {
+        const op = m[1];
+        const test = { "=": (d) => d === 0, "!=": (d) => d !== 0, "<>": (d) => d !== 0, ">": (d) => d > 0, "<": (d) => d < 0, ">=": (d) => d >= 0, "<=": (d) => d <= 0 }[op];
+        return (v) => (v === null || v === undefined ? op === "!=" || op === "<>" : test(Math.sign(sortCmp(v, m[2]))));
+      }
+      const neg = f.startsWith("!");
+      const needle = (neg ? f.slice(1) : f).toLowerCase();
+      return (v) => (v !== null && v !== undefined && cellText(v).toLowerCase().includes(needle)) !== neg;
+    }
+    function viewOrder() {
+      const R = res();
+      const fs = Object.entries(st.view.filters)
+        .filter(([, v]) => v.trim())
+        .map(([c, v]) => [Number(c), matcher(v)]);
+      const order = [];
+      for (let r = 0; r < R.rows.length; r++) if (fs.every(([c, m]) => m(valueAt(r, c)))) order.push(r);
+      const s = st.view.sort;
+      if (s) order.sort((a, b) => sortCmp(valueAt(a, s.c), valueAt(b, s.c), s.dir) || a - b);
+      // dòng mới thêm luôn ở cuối, không bị lọc / sắp xếp để thấy dòng đang nhập
+      for (let r = R.rows.length; r < R.rows.length + st.changes.inserts.length; r++) order.push(r);
+      return order;
+    }
+
     function paintGrid() {
       const R = res();
       const tabs = $(".res-tabs", host);
@@ -591,28 +637,122 @@
         grid.innerHTML = `<div class="empty faint">${R.affected ?? 0} row(s) affected${R.info ? ` · ${esc(R.info)}` : ""}</div>`;
         return;
       }
+      const V = st.view;
+      // đang gõ trong ô lọc: vẽ lại xong thì đặt con trỏ về đúng chỗ
+      const focused = document.activeElement?.classList?.contains("col-filter") && grid.contains(document.activeElement) ? document.activeElement : null;
+      const keep = focused && { f: focused.dataset.f, at: focused.selectionStart };
+      const order = (st.order = viewOrder());
       const pkSet = new Set(R.edit?.pk || []);
-      const head = `<tr><th class="rn">#</th>${R.columns.map((c, i) => `<th title="${esc(c.type ?? "")}">${pkSet.has(R.edit?.columns[i]) ? "🔑 " : ""}${esc(c.name)}</th>`).join("")}</tr>`;
-      const total = R.rows.length + st.changes.inserts.length;
-      const shown = Math.min(total, 5000);
+      const filtered = Object.values(V.filters).some((v) => v.trim());
+      const sortIcon = (i) => (V.sort?.c === i ? (V.sort.dir > 0 ? "▲" : "▼") : "⇅");
+      const head = `<tr><th class="rn">#</th>${R.columns
+        .map(
+          (c, i) =>
+            `<th class="col-h ${V.cols.has(i) ? "col-sel" : ""}" data-col="${i}" title="${esc(c.type ?? "")}${c.type ? " · " : ""}Click to select the column"><span class="th-in"><span class="th-name">${pkSet.has(R.edit?.columns[i]) ? "🔑 " : ""}${esc(c.name)}</span><button class="th-sort ${V.sort?.c === i ? "on" : ""}" data-sort="${i}" title="Sort (ascending, descending, off)">${sortIcon(i)}</button></span></th>`
+        )
+        .join("")}</tr><tr class="filter-row"><th class="rn">${filtered ? `<button class="th-clear" data-clear-filters title="Clear all filters">✕</button>` : ""}</th>${R.columns
+        .map((_, i) => `<th><input class="col-filter" data-f="${i}" value="${esc(V.filters[i] || "")}" placeholder="Filter" spellcheck="false" autocomplete="off" title="${FILTER_HELP}" /></th>`)
+        .join("")}</tr>`;
+      const shown = Math.min(order.length, 5000);
       let body = "";
-      for (let r = 0; r < shown; r++) {
+      for (let i = 0; i < shown; i++) {
+        const r = order[i];
         const isNew = r >= R.rows.length;
         const del = st.changes.deletes.has(r);
         const upd = st.changes.updates.get(r);
-        body += `<tr class="${isNew ? "new" : ""} ${del ? "deleted" : ""}" data-r="${r}"><td class="rn">${isNew ? "＋" : r + 1}</td>`;
+        body += `<tr class="${isNew ? "new" : ""} ${del ? "deleted" : ""} ${V.rows.has(r) ? "row-sel" : ""}" data-r="${r}"><td class="rn" title="Click to select the row (Shift: range, Ctrl/Cmd: add)">${isNew ? "＋" : r + 1}</td>`;
         for (let c = 0; c < R.columns.length; c++) {
           const v = valueAt(r, c);
           const changed = (upd && upd.has(c)) || (isNew && v !== undefined);
-          const cls = [changed ? "changed" : "", v === null ? "null" : "", typeof v === "number" ? "num" : "", st.sel.r === r && st.sel.c === c ? "sel" : ""].join(" ");
+          const cls = [changed ? "changed" : "", v === null ? "null" : "", typeof v === "number" ? "num" : "", st.sel.r === r && st.sel.c === c ? "sel" : "", V.cols.has(c) ? "col-sel" : ""].join(" ");
           body += `<td class="${cls}" data-c="${c}">${v === null ? "NULL" : v === undefined ? '<span class="faint">default</span>' : esc(cellText(v).slice(0, 500))}</td>`;
         }
         body += "</tr>";
       }
-      grid.innerHTML = `<table class="rgrid"><thead>${head}</thead><tbody>${body}</tbody></table>${total > shown ? `<div class="faint" style="padding:6px">Showing ${shown} of ${total} rows</div>` : ""}`;
+      const foot = [order.length > shown ? `Showing ${shown} of ${order.length} rows` : "", filtered ? `${order.length - st.changes.inserts.length} of ${R.rows.length} rows match the filters` : ""].filter(Boolean).join(" · ");
+      grid.innerHTML = `<table class="rgrid"><thead>${head}</thead><tbody>${body}</tbody></table>${foot ? `<div class="rgrid-foot faint">${foot}</div>` : ""}${filtered && !order.length ? `<div class="empty faint">No rows match the filters.</div>` : ""}`;
+      const tr0 = $(".rgrid thead tr", grid);
+      grid.style.setProperty("--rg-h", `${tr0.offsetHeight}px`);
+      if (keep) {
+        const inp = $(`.col-filter[data-f="${keep.f}"]`, grid);
+        inp?.focus();
+        inp?.setSelectionRange(keep.at, keep.at);
+      }
     }
 
-    function selectCell(r, c, scroll = true) {
+    // Tô lại dòng / cột đang chọn mà không vẽ lại cả lưới
+    function paintSel() {
+      const g = $(".res-grid", host);
+      const V = st.view;
+      $$("tr.row-sel", g).forEach((x) => x.classList.remove("row-sel"));
+      $$(".col-sel", g).forEach((x) => x.classList.remove("col-sel"));
+      for (const r of V.rows) $(`tr[data-r="${r}"]`, g)?.classList.add("row-sel");
+      for (const c of V.cols) {
+        $(`th[data-col="${c}"]`, g)?.classList.add("col-sel");
+        $$(`td[data-c="${c}"]`, g).forEach((x) => x.classList.add("col-sel"));
+      }
+    }
+    function clearPick() {
+      if (!st.view.rows.size && !st.view.cols.size) return;
+      st.view.rows.clear();
+      st.view.cols.clear();
+      paintSel();
+    }
+    // Bấm số dòng: chọn dòng; Shift chọn một đoạn (theo thứ tự đang hiện), Ctrl/Cmd thêm/bỏ từng dòng
+    function pickRow(r, e) {
+      const V = st.view;
+      V.cols.clear();
+      const a = st.order.indexOf(V.anchor);
+      const b = st.order.indexOf(r);
+      if (e.shiftKey && a >= 0 && b >= 0) {
+        if (!(e.ctrlKey || e.metaKey)) V.rows.clear();
+        for (let i = Math.min(a, b); i <= Math.max(a, b); i++) V.rows.add(st.order[i]);
+      } else if (e.ctrlKey || e.metaKey) {
+        if (V.rows.has(r)) V.rows.delete(r);
+        else V.rows.add(r);
+        V.anchor = r;
+      } else {
+        V.rows = new Set([r]);
+        V.anchor = r;
+      }
+      selectCell(r, Math.max(0, st.sel.c), false, true);
+      paintSel();
+    }
+    // Bấm tên cột: chọn cột (Shift / Ctrl / Cmd như chọn dòng)
+    function pickCol(c, e) {
+      const V = st.view;
+      V.rows.clear();
+      if (e.shiftKey && V.colAnchor >= 0) {
+        if (!(e.ctrlKey || e.metaKey)) V.cols.clear();
+        for (let i = Math.min(V.colAnchor, c); i <= Math.max(V.colAnchor, c); i++) V.cols.add(i);
+      } else if (e.ctrlKey || e.metaKey) {
+        if (V.cols.has(c)) V.cols.delete(c);
+        else V.cols.add(c);
+        V.colAnchor = c;
+      } else {
+        V.cols = new Set([c]);
+        V.colAnchor = c;
+      }
+      paintSel();
+      $(".res-grid", host).focus({ preventScroll: true });
+    }
+    // Bấm biểu tượng sắp xếp: tăng dần → giảm dần → tắt
+    function cycleSort(c, dir) {
+      const s = st.view.sort;
+      st.view.sort = dir !== undefined ? (dir ? { c, dir } : null) : s?.c !== c ? { c, dir: 1 } : s.dir > 0 ? { c, dir: -1 } : null;
+      paintGrid();
+    }
+    let filterTimer = 0;
+    host.addEventListener("input", (e) => {
+      const inp = e.target.closest(".col-filter");
+      if (!inp) return;
+      st.view.filters[inp.dataset.f] = inp.value;
+      clearTimeout(filterTimer);
+      filterTimer = setTimeout(paintGrid, 150);
+    });
+
+    function selectCell(r, c, scroll = true, keepPick = false) {
+      if (!keepPick) clearPick();
       st.sel = { r, c };
       $$(".res-grid td.sel", host).forEach((x) => x.classList.remove("sel"));
       const td = $(`.res-grid tr[data-r="${r}"] td[data-c="${c}"]`, host);
@@ -692,12 +832,20 @@
       editCell(r, Math.max(0, firstEditable));
     }
 
+    // Dòng sẽ áp thao tác: các dòng đang chọn (nếu r nằm trong đó), không thì chỉ dòng r; theo thứ tự đang hiện
+    const targetRows = (r) => (st.view.rows.has(r) ? st.order.filter((x) => st.view.rows.has(x)) : [r]);
+
+    // Xoá (hoặc bỏ xoá) dòng r hay mọi dòng đang chọn; dòng mới thêm thì bỏ hẳn
     function deleteRow(r = st.sel.r) {
       const R = res();
       if (!R?.edit || r < 0) return;
-      if (r >= R.rows.length) st.changes.inserts.splice(r - R.rows.length, 1);
-      else if (st.changes.deletes.has(r)) st.changes.deletes.delete(r);
-      else st.changes.deletes.add(r);
+      const rows = targetRows(r);
+      const old = rows.filter((x) => x < R.rows.length);
+      const undo = old.length && old.every((x) => st.changes.deletes.has(x));
+      for (const x of old) undo ? st.changes.deletes.delete(x) : st.changes.deletes.add(x);
+      const added = rows.filter((x) => x >= R.rows.length).sort((a, b) => b - a);
+      for (const x of added) st.changes.inserts.splice(x - R.rows.length, 1);
+      if (added.length) st.view.rows.clear();
       W.markDirty();
       paintGrid();
     }
@@ -735,6 +883,7 @@
         const again = await api("POST", `/api/databases/${st.conn}/query`, { db: st.db, sql: st.lastSql }).catch(() => null);
         if (again) {
           st.results = again.results;
+          st.view.rows.clear();
           msg(`Saved ${summary} · reloaded`);
         }
         paintGrid();
@@ -762,10 +911,33 @@
       const lit = (v) => (v === null || v === undefined ? "NULL" : typeof v === "number" ? v : `'${String(cellText(v)).replace(/'/g, "''")}'`);
       return `INSERT INTO ${R.edit ? tableRef(type, R.edit.schema, R.edit.table) : "table_name"} (${R.columns.map((x) => q(type, x.name)).join(", ")}) VALUES (${vals.map(lit).join(", ")});`;
     }
+    function rowsAs(rows, kind) {
+      const out = rows.map((r) => rowAs(r, kind));
+      return kind === "json" && rows.length > 1 ? `[\n${out.join(",\n")}\n]` : out.join("\n");
+    }
+    // Ctrl/Cmd+C: dòng đang chọn, cột đang chọn (kèm tên cột, các dòng đang hiện) hoặc ô; dạng TSV để dán vào bảng tính
+    function copySelection() {
+      const R = res();
+      const V = st.view;
+      const tsv = (v) => cellText(v).replace(/[\t\r\n]+/g, " ");
+      let text;
+      let what;
+      if (V.rows.size) {
+        const rows = targetRows([...V.rows][0]);
+        text = rows.map((r) => R.columns.map((_, c) => tsv(valueAt(r, c))).join("\t")).join("\n");
+        what = `${rows.length} row(s)`;
+      } else if (V.cols.size) {
+        const cols = [...V.cols].sort((a, b) => a - b);
+        text = [cols.map((c) => R.columns[c].name).join("\t"), ...st.order.map((r) => cols.map((c) => tsv(valueAt(r, c))).join("\t"))].join("\n");
+        what = `${cols.length} column(s) · ${st.order.length} row(s)`;
+      } else return st.sel.r >= 0 && copyText(st.sel.r, st.sel.c);
+      navigator.clipboard?.writeText(text).then(() => toast(`Copied ${what}`, "ok", 1500));
+    }
+    // CSV xuất theo đúng các dòng đang hiện (đã lọc, đã sắp xếp)
     function exportCsv() {
       const R = res();
       if (!R?.columns.length) return toast("No result to export", "error");
-      const lines = [R.columns.map((c) => csvCell(c.name)).join(","), ...R.rows.map((_, r) => rowAs(r, "csv"))];
+      const lines = [R.columns.map((c) => csvCell(c.name)).join(","), ...viewOrder().filter((r) => r < R.rows.length).map((r) => rowAs(r, "csv"))];
       const a = document.createElement("a");
       a.href = URL.createObjectURL(new Blob([lines.join("\n")], { type: "text/csv" }));
       a.download = `${R.edit?.table || "result"}.csv`;
@@ -793,30 +965,64 @@
           if (!ok) return;
           st.cur = Number(rt.dataset.res);
           st.changes = { updates: new Map(), deletes: new Set(), inserts: [] };
+          st.view = newView();
           paintGrid();
         });
         return;
       }
+      if (e.target.closest(".res-grid [data-clear-filters]")) {
+        st.view.filters = {};
+        return paintGrid();
+      }
+      const sb = e.target.closest(".res-grid [data-sort]");
+      if (sb) return cycleSort(Number(sb.dataset.sort));
+      const th = e.target.closest(".res-grid th[data-col]");
+      if (th) return pickCol(Number(th.dataset.col), e);
+      const rn = e.target.closest(".res-grid td.rn");
+      if (rn) return pickRow(Number(rn.parentElement.dataset.r), e);
       const td = e.target.closest(".res-grid td[data-c]");
       if (td) selectCell(Number(td.parentElement.dataset.r), Number(td.dataset.c), false);
+    });
+    // Shift+bấm số dòng không bôi đen chữ trong lưới
+    host.addEventListener("mousedown", (e) => {
+      if (e.shiftKey && e.target.closest(".res-grid td.rn, .res-grid th[data-col]")) e.preventDefault();
     });
     host.addEventListener("dblclick", (e) => {
       const td = e.target.closest(".res-grid td[data-c]");
       if (td) editCell(Number(td.parentElement.dataset.r), Number(td.dataset.c));
     });
     host.addEventListener("contextmenu", (e) => {
+      const th = e.target.closest(".res-grid th[data-col]");
+      if (th) {
+        const c = Number(th.dataset.col);
+        if (!st.view.cols.has(c)) pickCol(c, {});
+        const s = st.view.sort;
+        return W.menu(e, [
+          { label: "Copy column values", run: copySelection, key: "Ctrl+C" },
+          { sep: true },
+          { label: "Sort ascending", run: () => cycleSort(c, 1), disabled: s?.c === c && s.dir > 0 },
+          { label: "Sort descending", run: () => cycleSort(c, -1), disabled: s?.c === c && s.dir < 0 },
+          { label: "Clear sort", run: () => cycleSort(c, 0), disabled: !s },
+          { label: "Clear filters", run: () => ((st.view.filters = {}), paintGrid()), disabled: !Object.values(st.view.filters).some((v) => v.trim()) },
+        ]);
+      }
       const td = e.target.closest(".res-grid td");
       if (!td) return;
       const r = Number(td.parentElement.dataset.r);
       const c = td.dataset.c != null ? Number(td.dataset.c) : 0;
-      selectCell(r, c, false);
+      if (td.classList.contains("rn") && !st.view.rows.has(r)) pickRow(r, {});
+      selectCell(r, c, false, st.view.rows.has(r));
       const R = res();
       const editable = Boolean(R.edit);
+      const rows = targetRows(r);
+      const n = rows.length > 1 ? `${rows.length} rows` : "row";
+      const copy = (kind) => navigator.clipboard?.writeText(rowsAs(rows, kind));
       W.menu(e, [
-        { label: "Copy value", run: () => copyText(r, c), key: "Ctrl+C" },
-        { label: "Copy row as JSON", run: () => navigator.clipboard?.writeText(rowAs(r, "json")) },
-        { label: "Copy row as CSV", run: () => navigator.clipboard?.writeText(rowAs(r, "csv")) },
-        { label: "Copy row as INSERT", run: () => navigator.clipboard?.writeText(rowAs(r, "insert")) },
+        { label: "Copy value", run: () => copyText(r, c), key: rows.length > 1 ? "" : "Ctrl+C" },
+        ...(rows.length > 1 ? [{ label: `Copy ${n}`, run: copySelection, key: "Ctrl+C" }] : []),
+        { label: `Copy ${n} as JSON`, run: () => copy("json") },
+        { label: `Copy ${n} as CSV`, run: () => copy("csv") },
+        { label: `Copy ${n} as INSERT`, run: () => copy("insert") },
         ...(editable
           ? [
               { sep: true },
@@ -825,7 +1031,7 @@
               { label: "Set empty string", run: () => setValue(r, c, "") },
               { label: "Add row", run: addRow },
               { label: "Duplicate row", run: () => { const R2 = res(); st.changes.inserts.push(R2.columns.map((_, i) => (R2.edit.pk.includes(R2.edit.columns[i]) ? undefined : valueAt(r, i)))); W.markDirty(); paintGrid(); } },
-              { label: st.changes.deletes.has(r) ? "Undo delete" : "Delete row", danger: !st.changes.deletes.has(r), run: () => deleteRow(r), key: "Ctrl+Delete" },
+              { label: st.changes.deletes.has(r) ? `Undo delete${rows.length > 1 ? ` (${n})` : ""}` : `Delete ${n}`, danger: !st.changes.deletes.has(r), run: () => deleteRow(r), key: "Ctrl+Delete" },
               { label: "Revert row", run: () => revertRow(r), disabled: !st.changes.updates.has(r) && !st.changes.deletes.has(r) },
             ]
           : []),
@@ -833,18 +1039,31 @@
     });
     $(".res-grid", host).addEventListener("keydown", (e) => {
       const R = res();
-      if (!R?.columns.length || st.sel.r < 0) return;
-      const total = R.rows.length + st.changes.inserts.length;
+      if (e.target.closest(".col-filter")) {
+        if (e.key === "Escape" && e.target.value) {
+          e.target.value = "";
+          st.view.filters[e.target.dataset.f] = "";
+          paintGrid();
+        }
+        return;
+      }
+      if (!R?.columns.length) return;
+      const mod = e.ctrlKey || e.metaKey;
+      if (mod && e.key.toLowerCase() === "c" && (st.view.rows.size || st.view.cols.size)) return copySelection();
+      if (e.key === "Escape") return clearPick();
+      if (st.sel.r < 0) return;
       const { r, c } = st.sel;
       const moves = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1] };
       if (moves[e.key]) {
         e.preventDefault();
-        selectCell(Math.min(total - 1, Math.max(0, r + moves[e.key][0])), Math.min(R.columns.length - 1, Math.max(0, c + moves[e.key][1])));
+        if (!st.order.length) return;
+        const pos = Math.min(st.order.length - 1, Math.max(0, st.order.indexOf(r) + moves[e.key][0]));
+        selectCell(st.order[pos], Math.min(R.columns.length - 1, Math.max(0, c + moves[e.key][1])));
       } else if (e.key === "Enter" || e.key === "F2") {
         e.preventDefault();
         editCell(r, c);
-      } else if (e.ctrlKey && e.key.toLowerCase() === "c") copyText(r, c);
-      else if (e.ctrlKey && e.key === "Delete") deleteRow(r);
+      } else if (mod && e.key.toLowerCase() === "c") copyText(r, c);
+      else if (mod && (e.key === "Delete" || e.key === "Backspace")) deleteRow(r);
       else if (e.key === "Delete" && R.edit) setValue(r, c, null);
       else if (R.edit && e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
         editCell(r, c);

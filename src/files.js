@@ -129,6 +129,35 @@ async function raw(file) {
   return fsp.readFile(file);
 }
 
+// Audio / video cho trình xem: trả từng đoạn theo header Range để thẻ <video>/<audio> tua được và không phải tải hết file
+// (file phim có thể vài GB). range: "bytes=start-end" hoặc rỗng. Trả { size, start, end, partial, stream }.
+function parseRange(range, size) {
+  const m = /^bytes=(\d*)-(\d*)$/.exec(String(range || "").trim());
+  if (!m || (!m[1] && !m[2])) return null;
+  let start = m[1] ? Number(m[1]) : Math.max(0, size - Number(m[2]));
+  let end = m[1] && m[2] ? Number(m[2]) : size - 1;
+  end = Math.min(end, size - 1);
+  if (start > end || start >= size) throw Object.assign(new Error("Range not satisfiable"), { status: 416, size });
+  return { start, end };
+}
+async function media(file, range) {
+  file = abs(file);
+  const far = remote.isRemote(file);
+  const st = far ? await remote.mediaStat(file) : await fsp.stat(file);
+  if (far ? st.isDir : st.isDirectory()) throw Object.assign(new Error("This is a folder"), { status: 400 });
+  const r = parseRange(range, st.size);
+  const start = r ? r.start : 0;
+  const end = r ? r.end : st.size - 1;
+  const out = { size: st.size, start, end, partial: Boolean(r), stream: null, stop: () => {} };
+  if (!st.size) return out;
+  if (far) Object.assign(out, remote.rangeStream(file, start, end));
+  else {
+    out.stream = fs.createReadStream(file, { start, end });
+    out.stop = () => out.stream.destroy();
+  }
+  return out;
+}
+
 // Cây thư mục dạng chữ (như extension "file tree generator" của VS Code), bỏ qua thư mục nặng
 async function tree(dir, { maxDepth = 6, maxEntries = 3000 } = {}) {
   dir = abs(dir);
@@ -160,6 +189,7 @@ module.exports = {
   list: pick(list, remote.list),
   read: pick(read, remote.read),
   raw: pick(raw, remote.raw),
+  media,
   write: pick(write, remote.write),
   create: pick(create, remote.create),
   rename: pick(rename, remote.rename),

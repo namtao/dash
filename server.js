@@ -25,6 +25,7 @@ const remote = require("./src/remote");
 const sshForward = require("./src/ssh-forward");
 const localAi = require("./src/local-ai");
 const claudeUpdate = require("./src/claude-update");
+const claudeWarmup = require("./src/claude-warmup");
 const claudeManager = require("./src/claude-manager");
 const codeTools = require("./src/code-tools");
 const cryptoPrices = require("./src/crypto-prices");
@@ -52,6 +53,15 @@ const MIME = {
   ".mp3": "audio/mpeg",
   ".wav": "audio/wav",
   ".ogg": "audio/ogg",
+  ".oga": "audio/ogg",
+  ".opus": "audio/ogg",
+  ".m4a": "audio/mp4",
+  ".aac": "audio/aac",
+  ".flac": "audio/flac",
+  ".m4v": "video/mp4",
+  ".mov": "video/quicktime",
+  ".ogv": "video/ogg",
+  ".mkv": "video/x-matroska",
   ".png": "image/png",
   ".jpg": "image/jpeg",
   ".jpeg": "image/jpeg",
@@ -338,6 +348,33 @@ route("GET", "/api/files/raw", async (req, p, url, res) => {
   // File của người dùng không được chạy script trong origin của Dash (trừ PDF: trình xem PDF không chạy trong sandbox)
   await sendRaw(res, file, path.extname(file).toLowerCase() === ".pdf" ? "" : "sandbox; default-src 'none'; img-src data: 'self'; style-src 'unsafe-inline'");
 });
+// Audio / video: hỗ trợ Range (206) để tua và phát dần, không giới hạn kích thước như /api/files/raw
+route("GET", "/api/files/media", async (req, p, url, res) => {
+  const file = url.searchParams.get("path");
+  let m;
+  try {
+    m = await files.media(file, req.headers.range);
+  } catch (e) {
+    if (e.status !== 416) throw e;
+    res.writeHead(416, { "Content-Range": `bytes */${e.size}` });
+    res.end();
+    return;
+  }
+  const headers = {
+    "Content-Type": MIME[path.extname(file).toLowerCase()] || "application/octet-stream",
+    "Content-Length": m.size ? m.end - m.start + 1 : 0,
+    "Accept-Ranges": "bytes",
+    "Cache-Control": "no-store",
+    "X-Content-Type-Options": "nosniff",
+    "Content-Security-Policy": "sandbox; default-src 'none'",
+  };
+  if (m.partial) headers["Content-Range"] = `bytes ${m.start}-${m.end}/${m.size}`;
+  res.writeHead(m.partial ? 206 : 200, headers);
+  if (!m.stream) return void res.end();
+  res.on("close", m.stop);
+  m.stream.on("error", () => res.destroy());
+  m.stream.pipe(res);
+});
 // Xem trước trang HTML: đường dẫn nằm trong URL (không phải query) để CSS / JS / ảnh / link tương đối của trang tự trỏ
 // đúng file. /api/files/view/local/<abs> hoặc /api/files/view/ssh/<profile id>/<abs>. Trang chạy trong sandbox không có
 // allow-same-origin (origin rỗng) nên script của nó không chạm được vào Dash; không gửi CORS để origin rỗng không đọc được file.
@@ -452,6 +489,8 @@ route("GET", "/api/claude/history", (req, p, url) => claude.history(url.searchPa
 route("GET", "/api/claude/models", () => claude.models());
 route("GET", "/api/claude/version", () => claudeUpdate.status());
 route("POST", "/api/claude/update", () => claudeUpdate.update());
+route("GET", "/api/claude/warmup", () => claudeWarmup.status());
+route("POST", "/api/claude/warmup", async () => ({ run: await claudeWarmup.warmup("manual"), ...claudeWarmup.status() }));
 route("POST", "/api/claude/sessions", async (req) => claude.start(await readBody(req)));
 route("GET", "/api/claude/sessions/:id", (req, { id }) => claude.transcript(id));
 route("POST", "/api/claude/sessions/:id/send", async (req, { id }) => {
@@ -865,6 +904,7 @@ front.listen(listenPort, listenHost, () => {
   console.log(`Dash: http://${listenHost === "0.0.0.0" ? "127.0.0.1" : listenHost}:${listenPort}  ·  config: ${store.CONFIG_PATH}`);
   if (!process.env.DASH_NO_AUTOSTART) runner.autostart();
   claudeUpdate.schedule(claude.claudeBinary);
+  claudeWarmup.schedule({ findBinary: claude.claudeBinary, readUsage: claude.usage });
   claudeManager.setBinary(() => claude.claudeBinary() || "claude");
   syncTailscale().catch(() => {});
 });

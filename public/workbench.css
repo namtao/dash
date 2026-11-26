@@ -582,6 +582,7 @@ html.m .fm-hint { display: none; }
 .cl-input-wrap { position: relative; flex: none; padding: 8px 10px 10px; border-top: 1px solid var(--wb-border); }
 .cl-input { width: 100%; resize: none; min-height: 44px; max-height: 260px; font: 13px/1.5 var(--sans); background: var(--wb-input); border-radius: 8px; }
 .cl-input:focus { border-color: var(--accent); }
+.cl-input.busy { opacity: 0.6; }
 .cl-input-bar { display: flex; align-items: center; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
 .cl-opts { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
 .cl-opts select { height: 26px; padding: 2px 6px; font-size: 12px; max-width: 150px; }
@@ -646,6 +647,22 @@ html.m .fm-hint { display: none; }
 .rgrid td.changed { background: var(--amber-soft) !important; color: var(--text); }
 .rgrid tr.new td { background: var(--green-soft); }
 .rgrid tr.deleted td { background: var(--red-soft); text-decoration: line-through; color: var(--faint); }
+/* lưới kết quả SQL: chọn dòng / cột, nút sắp xếp, hàng ô lọc (hàng thứ hai của thead dính dưới hàng tên cột) */
+.rgrid th.col-h { cursor: pointer; user-select: none; }
+.rgrid .th-in { display: flex; align-items: center; gap: 6px; }
+.rgrid .th-name { flex: 1; }
+.rgrid .th-sort { border: 0; background: transparent; padding: 0 3px; cursor: pointer; color: var(--faint); font-size: 11px; line-height: 16px; border-radius: 3px; }
+.rgrid .th-sort:hover { color: var(--text); background: var(--wb-hover); }
+.rgrid .th-sort.on { color: var(--accent-text); }
+.rgrid tr.filter-row th { top: var(--rg-h, 27px); padding: 2px 4px; font-weight: 400; }
+.rgrid .col-filter { width: 100%; min-width: 64px; padding: 1px 6px; font: 12px var(--mono); border-radius: 3px; }
+.rgrid .th-clear { border: 0; background: transparent; cursor: pointer; color: var(--muted); padding: 0 4px; }
+.rgrid .th-clear:hover { color: var(--red-text); }
+.rgrid td.rn { cursor: pointer; user-select: none; }
+.rgrid td.rn:hover { color: var(--text); }
+.rgrid tr.row-sel td, .rgrid tr td.col-sel { background: var(--accent-soft); }
+.rgrid tr.row-sel td.rn, .rgrid th.col-h.col-sel { background: var(--accent-line); color: var(--text); }
+.rgrid-foot { position: sticky; left: 0; padding: 6px 10px; font-size: 12px; }
 .cell-input { width: 100%; min-width: 120px; padding: 1px 4px; font: 12.5px var(--mono); border-radius: 3px; border-color: var(--accent); }
 textarea.cell-input { min-height: 80px; position: relative; z-index: 4; }
 
@@ -808,6 +825,14 @@ textarea.cell-input { min-height: 80px; position: relative; z-index: 4; }
 .img-view img { max-width: 100%; max-height: calc(100% - 30px); object-fit: contain; box-shadow: var(--shadow-lg); }
 .img-meta { font-size: 12px; }
 .pdf-view { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+.media-view { min-height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 20px; }
+.media-video { background: #000; }
+.media-view video { max-width: 100%; max-height: calc(100% - 30px); outline: none; }
+.media-view audio { width: min(560px, 100%); }
+.media-view .audio-icon .ficon { width: 72px; height: 72px; }
+.media-view .audio-name { font-weight: 600; word-break: break-all; text-align: center; }
+.media-meta { font-size: 12px; }
+.media-video .media-meta { color: #bbb; }
 .grid-view { overflow: auto; }
 .doc-view { max-width: 860px; margin: 0 auto; padding: 24px 32px 80px; }
 .sheet-tabs { position: sticky; top: 0; z-index: 4; display: flex; gap: 2px; padding: 4px 8px; background: var(--wb-tab); border-bottom: 1px solid var(--wb-border); overflow-x: auto; }

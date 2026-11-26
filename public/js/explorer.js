@@ -289,8 +289,12 @@
   W.renderMarkdown = renderMarkdown;
 
   const IMAGE_RE = /\.(png|jpe?g|gif|webp|avif|bmp|ico|svg)$/i;
+  const VIDEO_RE = /\.(mp4|m4v|webm|mov|ogv|mkv)$/i;
+  const AUDIO_RE = /\.(mp3|wav|ogg|oga|opus|m4a|aac|flac)$/i;
   function viewerKind(p) {
     if (IMAGE_RE.test(p)) return "image";
+    if (VIDEO_RE.test(p)) return "video";
+    if (AUDIO_RE.test(p)) return "audio";
     if (/\.pdf$/i.test(p)) return "pdf";
     if (/\.(csv|tsv)$/i.test(p)) return "csv";
     if (/\.docx$/i.test(p)) return "docx";
@@ -338,14 +342,38 @@
         <button class="btn sm ghost" data-v="reload" title="Reload">↻</button></span></div>
       <div class="viewer viewer-${kind}"><div class="loading"><span class="spinner"></span></div></div>`;
     const box = $(".viewer", host);
-    const st = { size: null, url: null, sheet: null };
+    const st = { size: null, url: null, sheet: null, media: null };
+    const stopMedia = () => {
+      if (!st.media) return;
+      st.media.pause();
+      st.media.removeAttribute("src");
+      st.media.load();
+      st.media = null;
+    };
     async function load() {
       st.sheet = null;
+      stopMedia();
       W.markDirty();
       box.innerHTML = `<div class="loading"><span class="spinner"></span></div>`;
       try {
         if (kind === "unsupported") {
           box.innerHTML = `<div class="empty">This old Office format cannot be previewed. Save it as .docx / .xlsx / .pdf to view it here.</div>`;
+          return;
+        }
+        // Audio / video phát thẳng từ /api/files/media (hỗ trợ Range) để tua được và không tải hết file vào bộ nhớ
+        if (kind === "video" || kind === "audio") {
+          const src = `/api/files/media?path=${encodeURIComponent(p)}&t=${Date.now()}`;
+          const tag = kind === "video" ? `<video controls preload="metadata" src="${src}"></video>` : `<div class="audio-icon">${W.fileIcon(p)}</div><div class="audio-name">${esc(W.base(p))}</div><audio controls preload="metadata" src="${src}"></audio>`;
+          box.innerHTML = `<div class="media-view media-${kind}">${tag}<div class="faint media-meta"></div></div>`;
+          const el = $("video, audio", box);
+          const meta = $(".media-meta", box);
+          el.addEventListener("loadedmetadata", () => {
+            const dur = Number.isFinite(el.duration) ? fmtDuration(el.duration) : "";
+            const dims = kind === "video" && el.videoWidth ? `${el.videoWidth} × ${el.videoHeight} px` : "";
+            meta.textContent = [dims, dur].filter(Boolean).join(" · ");
+          });
+          el.addEventListener("error", () => (meta.textContent = "This browser cannot play this file format."));
+          st.media = el;
           return;
         }
         // Excel sửa được: nhớ mtime lúc mở (lấy trước nội dung) để khi lưu biết file đã bị sửa ở nơi khác chưa
@@ -393,8 +421,17 @@
       focus: () => $(".sheet-grid", box)?.focus(),
       isDirty: () => Boolean(st.sheet?.isDirty()),
       save: () => (st.sheet ? st.sheet.save() : true),
-      dispose: () => st.url && URL.revokeObjectURL(st.url),
+      dispose: () => {
+        stopMedia();
+        if (st.url) URL.revokeObjectURL(st.url);
+      },
     };
+  }
+  function fmtDuration(sec) {
+    const s = Math.round(sec);
+    const h = Math.floor(s / 3600);
+    const mm = String(Math.floor((s % 3600) / 60)).padStart(h ? 2 : 1, "0");
+    return `${h ? `${h}:` : ""}${mm}:${String(s % 60).padStart(2, "0")}`;
   }
 
   // ----- format / báo lỗi -----
