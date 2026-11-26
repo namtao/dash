@@ -48,6 +48,10 @@ const DEFAULT_WORKSPACE = {
   // các mục ghim trên thanh điều hướng điện thoại. Lưu ở server để PC và điện thoại dùng chung.
   navOrder: "",
   mobileNav: "terminal,claude",
+  // Ảnh nền: đường dẫn ảnh trên máy Dash hoặc URL http(s); độ hiện của ảnh (%); tự chọn theme sáng / tối theo độ sáng ảnh
+  background: "",
+  backgroundOpacity: 15,
+  themeAuto: false,
 };
 // AI chạy local (OpenAI-compatible như Cline: Ollama, LM Studio, llama.cpp…). Khoá API chỉ nằm ở server.
 const DEFAULT_AI = { baseUrl: "http://localhost:11434/v1", model: "", apiKey: "" };
@@ -175,6 +179,7 @@ function normalizeWorkspace(raw = {}) {
   out.usageRefreshSec = Math.max(30, out.usageRefreshSec);
   out.sqlRowLimit = Math.min(100000, Math.max(10, Math.round(out.sqlRowLimit)));
   out.autoSaveDelay = Math.min(60000, Math.max(200, Math.round(out.autoSaveDelay)));
+  out.backgroundOpacity = Math.min(60, Math.max(3, Math.round(out.backgroundOpacity)));
   // Shell không có trên máy này (vd. cấu hình chép từ Linux sang macOS) thì dùng shell mặc định
   if (!isFile(out.shell)) out.shell = DEFAULT_WORKSPACE.shell;
   for (const [k, v] of Object.entries(out.keybindings)) if (typeof v !== "string") delete out.keybindings[k];

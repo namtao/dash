@@ -184,6 +184,56 @@ async function loadInfo() {
 
 async function loadConfig() {
   S.config = await api("GET", "/api/config");
+  applyAppearance();
+}
+
+// ---------- ảnh nền + theme sáng / tối tự động ----------
+// Ảnh nằm trên một lớp phủ mờ trên cùng, không nhận chuột (như extension "background" của VS Code), nên mọi khung
+// (terminal, Monaco, Claude…) đều thấy ảnh mà không phải đổi màu nền của từng khung.
+const bgUrl = (b) => (/^https?:\/\//i.test(b) ? b : `/api/files/raw?path=${encodeURIComponent(b)}`);
+const bgLuma = new Map();
+// Độ sáng trung bình 0..1 của ảnh (thu nhỏ còn 32×32). null khi không đọc được điểm ảnh (ảnh lỗi, ảnh từ site khác).
+function imageLuminance(src) {
+  if (!bgLuma.has(src))
+    bgLuma.set(
+      src,
+      new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+          try {
+            const c = Object.assign(document.createElement("canvas"), { width: 32, height: 32 });
+            const ctx = c.getContext("2d", { willReadFrequently: true });
+            ctx.drawImage(img, 0, 0, 32, 32);
+            const d = ctx.getImageData(0, 0, 32, 32).data;
+            let sum = 0;
+            for (let i = 0; i < d.length; i += 4) sum += (0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2]) / 255;
+            resolve(sum / (d.length / 4));
+          } catch {
+            resolve(null);
+          }
+        };
+        img.onerror = () => resolve(null);
+        img.src = src;
+      })
+    );
+  return bgLuma.get(src);
+}
+async function applyAppearance() {
+  const ws = S.config?.workspace || {};
+  const bg = String(ws.background || "").trim();
+  let layer = document.getElementById("bg-layer");
+  if (bg) {
+    if (!layer) document.body.append((layer = Object.assign(document.createElement("div"), { id: "bg-layer" })));
+    layer.style.backgroundImage = `url(${JSON.stringify(bgUrl(bg))})`;
+    layer.style.opacity = String((ws.backgroundOpacity || 15) / 100);
+  } else layer?.remove();
+  if (!ws.themeAuto) return;
+  const luma = bg ? await imageLuminance(bgUrl(bg)) : null;
+  const dark = luma == null ? matchMedia("(prefers-color-scheme: dark)").matches : luma < 0.5;
+  if (store.get("theme", "dark") !== (dark ? "dark" : "light")) {
+    store.set("theme", dark ? "dark" : "light");
+    applyTheme();
+  }
 }
 
 // ---------- render: khung ----------
@@ -1010,6 +1060,12 @@ const actions = {
     const dark = document.documentElement.dataset.theme !== "dark";
     store.set("theme", dark ? "dark" : "light");
     applyTheme();
+    // Chọn theme bằng tay thì tắt chế độ tự động, không thì lần đọc cấu hình sau lại đổi về
+    if (S.config?.workspace?.themeAuto)
+      api("PUT", "/api/workspace", { themeAuto: false })
+        .then(() => (localStorage.setItem("dash:appearance", String(Date.now())), typeof W !== "undefined" ? W.reloadConfig() : loadConfig()))
+        .then(() => toast("Auto dark / light theme turned off", "ok", 1500))
+        .catch((e) => toast(e.message, "error"));
   },
 };
 
@@ -1518,6 +1574,9 @@ function applyTheme() {
   window.addEventListener("hashchange", readHash);
   // Đổi theme ở một tab dự án thì các tab khác đổi theo
   window.addEventListener("storage", (e) => e.key === "dash:theme" && applyTheme());
+  // Đổi ảnh nền / theme tự động ở tab khác thì đọc lại cấu hình
+  window.addEventListener("storage", (e) => e.key === "dash:appearance" && (typeof W !== "undefined" ? W.reloadConfig() : loadConfig()).catch(() => {}));
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => applyAppearance());
   readHash();
   poll();
   setInterval(() => {

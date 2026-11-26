@@ -4,6 +4,11 @@
 (() => {
   // ---------- Settings ----------
   const FIELDS = [
+    ["Appearance", [
+      ["background", "Background image", "image", "Path of an image on the Dash machine, or an https:// URL. Empty = no background. “Choose image…” uploads one from this device."],
+      ["backgroundOpacity", "Background strength (%)", "number", "How visible the image is over the workspace, 3 to 60. Around 10 to 20 keeps text easy to read."],
+      ["themeAuto", "Auto dark / light theme", "bool", "Use the light theme on a bright background and the dark theme on a dark one. Without a background, or with an image from another site, follow the system setting. Pressing the theme button turns this off."],
+    ]],
     ["Terminal", [
       ["shell", "Shell", "text", "Path of the shell for new terminals. zsh and bash get command history per folder."],
       ["fontFamily", "Font family", "text", "Used by terminals and editors. Nerd Fonts show powerlevel10k icons."],
@@ -51,6 +56,7 @@
                 let input;
                 if (type === "bool") input = `<label class="switch"><input type="checkbox" data-key="${key}" ${v ? "checked" : ""}/><span></span></label>`;
                 else if (Array.isArray(type)) input = `<select data-key="${key}">${type.map((o) => `<option value="${esc(o)}" ${v === o ? "selected" : ""}>${esc(o || "(default)")}</option>`).join("")}</select>`;
+                else if (type === "image") input = `<input data-key="${key}" type="text" class="mono" value="${esc(v ?? "")}" placeholder="none" /> <button class="btn" data-bg="pick">Choose image…</button>${v ? ` <button class="btn ghost" data-bg="clear">Remove</button>` : ""}`;
                 else input = `<input data-key="${key}" type="${type}" ${step ? `step="${step}"` : ""} class="${type === "text" ? "mono" : ""}" value="${esc(v ?? "")}" />`;
                 return `<div class="setting" data-search="${esc(`${label} ${help || ""} ${key}`.toLowerCase())}"><div class="setting-label"><b>${esc(label)}</b>${help ? `<small>${esc(help)}</small>` : ""}</div><div class="setting-input">${input}</div></div>`;
               })
@@ -232,6 +238,29 @@
       window.addEventListener("keydown", onKey, true);
     }
 
+    // Ảnh nền: tải ảnh từ máy đang dùng lên server, hoặc bỏ ảnh nền
+    const appearanceSaved = async (msg, repaint) => {
+      await W.reloadConfig();
+      localStorage.setItem("dash:appearance", String(Date.now())); // các tab dự án khác đọc lại cấu hình
+      if (repaint) render();
+      toast(msg, "ok", 1200);
+    };
+    function pickBackground(act) {
+      if (act === "clear") return guarded(() => api("PUT", "/api/workspace", { background: "" })).then((ok) => ok && appearanceSaved("Background removed", true));
+      const input = Object.assign(document.createElement("input"), { type: "file", accept: "image/png,image/jpeg,image/gif,image/webp,image/avif,image/bmp" });
+      input.onchange = async () => {
+        const f = input.files[0];
+        if (!f) return;
+        const ok = await guarded(async () => {
+          const res = await fetch(`/api/workspace/background?name=${encodeURIComponent(f.name)}`, { method: "PUT", headers: { "X-Dash": "1", "Content-Type": "application/octet-stream" }, body: f });
+          if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `HTTP ${res.status}`);
+          return true;
+        });
+        if (ok) appearanceSaved("Background saved", true);
+      };
+      input.click();
+    }
+
     let saveTimer = 0;
     host.addEventListener("change", async (e) => {
       const ai = e.target.closest("[data-ai]");
@@ -249,6 +278,7 @@
       clearTimeout(saveTimer);
       saveTimer = setTimeout(async () => {
         if (await guarded(() => api("PUT", "/api/workspace", { [el.dataset.key]: value }))) {
+          if (["background", "backgroundOpacity", "themeAuto"].includes(el.dataset.key)) return appearanceSaved("Setting saved", el.dataset.key === "background");
           await W.reloadConfig();
           toast("Setting saved", "ok", 1200);
         }
@@ -262,6 +292,8 @@
       }
     });
     host.addEventListener("click", (e) => {
+      const bg = e.target.closest("[data-bg]");
+      if (bg) pickBackground(bg.dataset.bg);
       const j = e.target.closest("[data-jump]");
       if (j) {
         e.preventDefault();

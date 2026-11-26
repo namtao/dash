@@ -133,6 +133,26 @@ route("PUT", "/api/config", async (req) => {
   return store.publicConfig();
 });
 route("PUT", "/api/workspace", async (req) => store.updateSection("workspace", { ...store.load().workspace, ...(await readBody(req)) }));
+// Ảnh nền tải lên từ trình duyệt: lưu trong .cache/backgrounds (đã gitignore), chỉ giữ ảnh mới nhất, rồi trỏ workspace.background tới đó
+const BG_DIR = path.join(store.ROOT, ".cache", "backgrounds");
+const BG_EXT = [".png", ".jpg", ".jpeg", ".gif", ".webp", ".avif", ".bmp"];
+route("PUT", "/api/workspace/background", async (req, p, url) => {
+  const ext = path.extname(url.searchParams.get("name") || "").toLowerCase();
+  if (!BG_EXT.includes(ext)) throw httpError(400, "Choose a PNG, JPEG, GIF, WebP, AVIF or BMP image");
+  const chunks = [];
+  let size = 0;
+  for await (const chunk of req) {
+    size += chunk.length;
+    if (size > 20 * 1024 * 1024) throw httpError(413, "The image is larger than 20 MB");
+    chunks.push(chunk);
+  }
+  if (!size) throw httpError(400, "The file is empty");
+  await fs.promises.mkdir(BG_DIR, { recursive: true });
+  for (const f of await fs.promises.readdir(BG_DIR)) await fs.promises.rm(path.join(BG_DIR, f), { force: true });
+  const file = path.join(BG_DIR, `background-${Date.now()}${ext}`);
+  await fs.promises.writeFile(file, Buffer.concat(chunks));
+  return store.updateSection("workspace", { ...store.load().workspace, background: file });
+});
 route("PUT", "/api/settings", async (req) => store.updateSettings(await readBody(req)));
 // Xuất toàn bộ cấu hình (không kèm mật khẩu / khoá API) thành file JSON tải về; không lưu hay gửi đi đâu
 route("GET", "/api/export", (req, p, url, res) => {

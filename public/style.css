@@ -397,3 +397,6 @@ td .sub { font-size: 12px; color: var(--muted); }
   .two-col, .form { grid-template-columns: 1fr; }
   main.main { padding: 16px; }
 }
+
+/* Ảnh nền (Settings → Appearance): lớp phủ mờ trên cùng, không nhận chuột. Độ mờ đặt trong app.js. */
+#bg-layer { position: fixed; inset: 0; z-index: 2147483000; pointer-events: none; background: center / cover no-repeat; }
