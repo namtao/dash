@@ -262,14 +262,14 @@ const rebuildExtra = (prevT, x, price) => (prevT && x.t - prevT > IDLE && x.c5 +
 // ---------- tổng hợp ----------
 // sid: chỉ tính một phiên (trang dòng chảy dùng để lấy các cảnh báo riêng của phiên đó)
 // from (ms): tính từ mốc này tới giờ thay cho days (trang Checks dùng để hỏi Claude từ lần check gần nhất)
-async function overview({ days = 30, from = 0, replyWords = 50, ctxLimit = 150000, checkRe = "", sid = "", lang = "" } = {}) {
+async function overview({ days = 30, from = 0, replyWords = 80, ctxLimit = 150000, checkRe = "", sid = "", lang = "" } = {}) {
   const files = await all();
   linkAgents(files);
   const price = prices(files);
   const span = from > 0 ? Math.max(60000, Date.now() - from) : days > 0 ? days * 86400000 : 0;
   const since = span ? Date.now() - span : 0;
   const check = compileRe(checkRe, DEFAULT_CHECK);
-  const limitWords = Math.max(1, Number(replyWords) || 50);
+  const limitWords = Math.max(1, Number(replyWords) || 80);
   const limitCtx = Math.max(1000, Number(ctxLimit) || 150000);
 
   const tok = { input: 0, output: 0, cacheWrite: 0, cacheRead: 0 };

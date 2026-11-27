@@ -12,7 +12,7 @@
     ["90", "90 days"],
     ["all", "All"],
   ];
-  const DEF_CFG = { days: "30", words: 50, ctx: 150, check: "", sort: "cost", lang: "en", askModel: "sonnet" };
+  const DEF_CFG = { days: "30", words: 80, ctx: 150, check: "", sort: "cost", lang: "en", askModel: "sonnet" };
   const ASK_MODELS = ["haiku", "sonnet", "opus"];
   const cfg = { ...DEF_CFG, ...store.get("claudeInsights", {}) };
   // checks: card "Checks" có trạng thái riêng để vẽ lại độc lập với số liệu chính (open = các mục đang mở, key "kind:id")
