@@ -12,9 +12,11 @@
     ["90", "90 days"],
     ["all", "All"],
   ];
-  const DEF_CFG = { days: "30", words: 50, ctx: 150, check: "", sort: "cost", lang: "en" };
+  const DEF_CFG = { days: "30", words: 50, ctx: 150, check: "", sort: "cost", lang: "en", askModel: "sonnet" };
+  const ASK_MODELS = ["haiku", "sonnet", "opus"];
   const cfg = { ...DEF_CFG, ...store.get("claudeInsights", {}) };
-  const st = { data: null, usage: null, loading: false, error: "", q: "" };
+  // checks: card "Checks" có trạng thái riêng để vẽ lại độc lập với số liệu chính (open = các mục đang mở, key "kind:id")
+  const st = { data: null, usage: null, loading: false, error: "", q: "", checks: { data: null, loading: false, asking: false, error: "", all: false, open: new Set() } };
   let host = null;
 
   // ---------- định dạng ----------
@@ -319,7 +321,8 @@
       body.innerHTML = empty(st.error || "Loading…");
       return;
     }
-    if (body.dataset.built !== cfg.lang) {
+    const rebuilt = body.dataset.built !== cfg.lang;
+    if (rebuilt) {
       body.dataset.built = cfg.lang;
       const t = tx();
       body.innerHTML = `<div class="ci-kpis"></div><div class="ci-grid">
@@ -328,6 +331,7 @@
         ${card("projects", "Cost by project", "")}
         ${card("team", "Who does the work", "The main chat carries the whole conversation, so every step there costs the most. Subagents start small and can run cheaper models.", true)}
         <section class="ci-card wide" data-card="find"><header><h3>${t.title}</h3><small class="faint">${t.sub}</small><span class="ci-lang">${["en", "vi"].map((l) => `<button class="btn sm ${cfg.lang === l ? "primary" : "ghost"}" data-lang="${l}">${l.toUpperCase()}</button>`).join("")}</span></header><div class="ci-c"></div><details class="ci-cfg-wrap"><summary class="faint">${t.cfg}</summary><form class="ci-cfg"><label>${t.reply} <input type="number" name="words" min="5" max="2000" value="${esc(cfg.words)}" /> ${t.words}</label><label>${t.ctx} <input type="number" name="ctx" min="10" max="2000" value="${esc(cfg.ctx)}" />${t.ktok}</label><label>${t.check} <input name="check" class="mono" placeholder="${t.checkPh}" value="${esc(cfg.check)}" /></label><button class="btn sm">${t.apply}</button></form></details></section>
+        ${card("checks", "Checks", "Ask Claude how to improve, using only the activity since the last check", true)}
         <section class="ci-card wide" data-card="sessions"><header><h3>Chats</h3><small class="faint">click a row to see where its tokens went</small><span class="ci-sort"></span><input type="search" class="ci-q" placeholder="Filter by title or folder" value="${esc(st.q)}" /></header><div class="ci-c"></div></section>
       </div>`;
     }
@@ -350,6 +354,111 @@
       { labelW: 170 },
     );
     c("team").innerHTML = teamGraph(d, wOf("team")) + teamTable(d);
+    // Card Checks tự vẽ; chỉ vẽ lại ở đây khi lưới vừa được dựng mới (nội dung cũ đã mất)
+    if (rebuilt) paintChecks();
+  }
+
+  // ---------- Checks: các lần rà soát (Ask Claude, chat cải thiện token, báo cáo tuần) ----------
+  const ckKey = (e) => `${e.kind}:${e.id}`;
+  const ckBadge = (e) => (e.kind === "ask" ? `Ask · ${e.model || "?"}` : e.kind === "chat" ? "Chat" : "Weekly report");
+  const ckEntry = (key) => st.checks.data?.entries.find((e) => ckKey(e) === key);
+  const CK_SHOW = 20;
+
+  function checkRow(e) {
+    const key = ckKey(e);
+    const badge = `<span class="ci-ck-badge ${e.kind}">${esc(ckBadge(e))}</span>`;
+    if (e.kind === "chat") {
+      return `<div class="ci-ck chat"><div class="ci-ck-row">${badge}<a href="#" class="ci-ck-t" data-flow="${esc(e.id)}" title="See where the tokens went in this chat">${esc(clip(e.title || e.id, 100))}</a><small class="faint">${esc(when(e.t))}</small></div>${e.prompt ? `<div class="ci-ck-prompt faint">${esc(clip(e.prompt, 140))}</div>` : ""}</div>`;
+    }
+    const title = e.kind === "ask" ? `Activity from ${when(e.from)}` : e.title || e.id;
+    const meta = e.kind === "ask" ? `<small class="faint ci-ck-meta">${esc(`${e.prompts} prompts · ${usd(e.cost)} analysed`)}</small>` : "";
+    const del = e.kind === "ask" ? `<div class="ci-ck-actions"><button class="btn sm ghost" data-ck="del" data-id="${esc(e.id)}" title="Delete this check">Delete</button></div>` : "";
+    return `<details class="ci-ck ${e.kind}" data-key="${esc(key)}"${st.checks.open.has(key) ? " open" : ""}><summary>${badge}<span class="ci-ck-t">${esc(clip(title, 100))}</span>${meta}<small class="faint">${esc(when(e.t))}</small></summary><div class="ci-ck-body">${del}<div class="cm-md ci-md"></div></div></details>`;
+  }
+
+  // Dựng markdown lần đầu mở một mục (qua DOMPurify trong W.renderMarkdown), lỗi thì hiện chữ thô
+  async function fillCheck(det) {
+    const el = $(".ci-md", det);
+    const e = ckEntry(det.dataset.key);
+    if (!el || !e || el.dataset.done) return;
+    el.dataset.done = "1";
+    try {
+      await W.renderMarkdown(el, e.text || "", "/x");
+    } catch {
+      el.textContent = e.text || "";
+    }
+  }
+
+  function paintChecks() {
+    const box = host && $('[data-card="checks"] .ci-c', host);
+    if (!box) return;
+    const k = st.checks;
+    const d = k.data;
+    const busy = k.asking || d?.running;
+    let top = "";
+    if (d) {
+      const last = d.last;
+      const lastAsk = last?.kind === "ask" ? ckEntry(`ask:${last.id}`) : null;
+      const lastTxt = !last
+        ? "no check yet · last 7 days"
+        : last.kind === "chat"
+          ? `last check: <a href="#" data-flow="${esc(last.id)}" title="See where the tokens went in this chat">${esc(clip(last.title || last.id, 60))}</a>`
+          : `last check: Ask${lastAsk?.model ? ` · ${esc(lastAsk.model)}` : ""}`;
+      top = `<span class="ci-ck-since">Since <b>${esc(when(d.since))}</b> · ${lastTxt}</span>`;
+    }
+    const note = busy ? `<div class="ci-ck-note faint"><span class="spinner xs"></span>Takes up to 2 minutes</div>` : "";
+    const err = k.error ? `<div class="ci-ck-err">${esc(k.error)}</div>` : "";
+    const entries = d?.entries || [];
+    const shown = k.all ? entries : entries.slice(0, CK_SHOW);
+    const list = !d ? (k.error ? "" : empty("Loading…")) : entries.length ? shown.map(checkRow).join("") : empty("No checks yet. Ask Claude to review your recent usage.");
+    const more = entries.length > CK_SHOW ? `<button class="btn sm ghost ci-ck-more" data-ck="all">${k.all ? "Show fewer" : `Show all (${entries.length})`}</button>` : "";
+    box.innerHTML = `<div class="ci-ck-top">${top}<span class="ci-ck-ctl"><select data-ck="model" title="Model that writes the review"${busy ? " disabled" : ""}>${ASK_MODELS.map((m) => `<option value="${m}"${cfg.askModel === m ? " selected" : ""}>${m}</option>`).join("")}</select><button class="btn sm primary" data-ck="ask"${busy ? " disabled" : ""}>${busy ? "Asking…" : "Ask Claude"}</button></span></div>${note}${err}<div class="ci-ck-list">${list}</div>${more}`;
+    for (const det of box.querySelectorAll("details.ci-ck[open]")) fillCheck(det);
+  }
+
+  async function loadChecks() {
+    const k = st.checks;
+    if (k.loading) return;
+    k.loading = true;
+    try {
+      k.data = await api("GET", "/api/claude/insights/checks");
+      if (!k.asking) k.error = "";
+    } catch (e) {
+      k.error = e.message || "Could not load checks";
+    }
+    k.loading = false;
+    paintChecks();
+  }
+
+  // Ask Claude mất 30–120 giây; xong thì tải lại danh sách và mở sẵn mục mới
+  async function askClaude() {
+    const k = st.checks;
+    if (k.asking || k.data?.running) return;
+    if (!ASK_MODELS.includes(cfg.askModel)) cfg.askModel = DEF_CFG.askModel;
+    k.asking = true;
+    k.error = "";
+    paintChecks();
+    try {
+      const e = await api("POST", "/api/claude/insights/ask", { model: cfg.askModel, lang: cfg.lang, words: cfg.words, ctx: cfg.ctx * 1000, check: cfg.check });
+      k.open.add(ckKey(e));
+      await loadChecks();
+    } catch (e) {
+      k.error = e.message || "Ask failed";
+      toast(k.error, "error");
+    }
+    k.asking = false;
+    paintChecks();
+  }
+
+  async function deleteCheck(id) {
+    if (!(await confirmDialog("Delete this check? The saved answer is removed.", { title: "Delete check", ok: "Delete", danger: true }))) return;
+    try {
+      await api("DELETE", `/api/claude/insights/checks/${enc(id)}`);
+      st.checks.open.delete(`ask:${id}`);
+      await loadChecks();
+    } catch (e) {
+      toast(e.message || "Could not delete the check", "error");
+    }
   }
 
   // Mở transcript của một chat trong Claude Manager
@@ -446,8 +555,20 @@
         e.preventDefault();
         return openFlow(f.dataset.flow);
       }
+      const ck = e.target.closest("[data-ck]");
+      if (ck) {
+        if (ck.dataset.ck === "ask") askClaude();
+        else if (ck.dataset.ck === "all") {
+          st.checks.all = !st.checks.all;
+          paintChecks();
+        } else if (ck.dataset.ck === "del") deleteCheck(ck.dataset.id);
+        return;
+      }
       const a = e.target.closest("[data-ci]")?.dataset.ci;
-      if (a === "reload") load();
+      if (a === "reload") {
+        load();
+        loadChecks();
+      }
       else if (a === "manager") W.run("claude.manager");
     });
     h.addEventListener("submit", (e) => {
@@ -460,6 +581,24 @@
       store.set("claudeInsights", cfg);
       load();
     });
+    h.addEventListener("change", (e) => {
+      if (!e.target.matches('[data-ck="model"]') || !ASK_MODELS.includes(e.target.value)) return;
+      cfg.askModel = e.target.value;
+      store.set("claudeInsights", cfg);
+    });
+    // toggle không nổi bọt nên bắt ở pha capture; mở một mục thì ghi nhớ và dựng markdown
+    h.addEventListener(
+      "toggle",
+      (e) => {
+        const det = e.target;
+        if (!det.matches?.("details.ci-ck")) return;
+        if (det.open) {
+          st.checks.open.add(det.dataset.key);
+          fillCheck(det);
+        } else st.checks.open.delete(det.dataset.key);
+      },
+      true,
+    );
     h.addEventListener("input", (e) => {
       if (!e.target.matches(".ci-q")) return;
       st.q = e.target.value;
@@ -469,6 +608,7 @@
     W.on("theme", offTheme);
     paint();
     load();
+    loadChecks();
     return {
       dispose: () => {
         ro.disconnect();
@@ -480,6 +620,7 @@
   function open() {
     W.openTab({ id: "claude-insights", title: "Claude Insights", icon: W.ICON.claude, persist: { kind: "claude-insights", data: {} }, create: (h) => mount(h) });
     if (host && !st.loading) load();
+    if (host) loadChecks();
   }
 
   // ---------- dòng chảy một phiên ----------

@@ -29,7 +29,8 @@ const words = (s) => (s.match(/\S+/g) || []).length;
 const textOf = (c) => (typeof c === "string" ? c : Array.isArray(c) ? c.filter((b) => b?.type === "text").map((b) => b.text || "").join("\n") : "");
 const resultText = (c) => (typeof c === "string" ? c : Array.isArray(c) ? c.map((x) => (x?.type === "text" ? x.text : "")).join("\n") : "");
 const countImages = (c) => (Array.isArray(c) ? c.reduce((n, b) => n + (b?.type === "image" ? 1 : b?.type === "tool_result" ? countImages(b.content) : 0), 0) : 0);
-const errorKind = (t) => (/doesn't want to proceed|was rejected|user (denied|rejected)|permission (was )?denied|not allowed/i.test(t) ? "denied" : /\bhook\b/i.test(t) ? "hook" : "other");
+// Hook chặn có dạng "PreToolUse:Bash hook error: …"; output lệnh có chữ "hook" thì không tính
+const errorKind = (t) => (/doesn't want to proceed|was rejected|user (denied|rejected)|permission (was )?denied|not allowed/i.test(t) ? "denied" : /^\S*(PreToolUse|PostToolUse|UserPromptSubmit|Stop)\S* hook|a hook changed this call/i.test(t) ? "hook" : "other");
 
 // ---------- tóm tắt một file ----------
 async function parseFile(file, kind) {
@@ -260,11 +261,12 @@ const rebuildExtra = (prevT, x, price) => (prevT && x.t - prevT > IDLE && x.c5 +
 
 // ---------- tổng hợp ----------
 // sid: chỉ tính một phiên (trang dòng chảy dùng để lấy các cảnh báo riêng của phiên đó)
-async function overview({ days = 30, replyWords = 50, ctxLimit = 150000, checkRe = "", sid = "", lang = "" } = {}) {
+// from (ms): tính từ mốc này tới giờ thay cho days (trang Checks dùng để hỏi Claude từ lần check gần nhất)
+async function overview({ days = 30, from = 0, replyWords = 50, ctxLimit = 150000, checkRe = "", sid = "", lang = "" } = {}) {
   const files = await all();
   linkAgents(files);
   const price = prices(files);
-  const span = days > 0 ? days * 86400000 : 0;
+  const span = from > 0 ? Math.max(60000, Date.now() - from) : days > 0 ? days * 86400000 : 0;
   const since = span ? Date.now() - span : 0;
   const check = compileRe(checkRe, DEFAULT_CHECK);
   const limitWords = Math.max(1, Number(replyWords) || 50);
@@ -686,4 +688,7 @@ async function session(sessionId, opts = {}) {
   };
 }
 
-module.exports = { overview, session };
+// Chat chính (không gồm subagent) kèm prompt của user, để tìm các chat check/cải thiện token
+const chats = async () => (await all()).filter((f) => f.kind === "main" && f.sessionId).map(({ sessionId, title, cwd, start, end, turns }) => ({ sessionId, title, cwd, start, end, turns }));
+
+module.exports = { overview, session, chats };

@@ -451,9 +451,10 @@ function transcriptText(msgs, max = 80000) {
   return text;
 }
 
-function runPrint(input, timeout = 180000) {
+// Chạy `claude -p` không lưu phiên; input đi qua stdin. args: cờ thêm (vd. tắt tool, bỏ hook của user)
+function runPrint(input, timeout = 180000, { model = "haiku", args = [] } = {}) {
   return new Promise((resolve, reject) => {
-    const child = spawn(binary(), ["-p", "--model", "haiku", "--no-session-persistence", "--output-format", "text"], { cwd: os.tmpdir(), env: { ...process.env, CI: "1" }, stdio: ["pipe", "pipe", "pipe"] });
+    const child = spawn(binary(), ["-p", "--model", model, "--no-session-persistence", "--output-format", "text", ...args], { cwd: os.tmpdir(), env: { ...process.env, CI: "1" }, stdio: ["pipe", "pipe", "pipe"] });
     let out = "";
     let errText = "";
     const timer = setTimeout(() => child.kill(), timeout);
@@ -541,4 +542,5 @@ module.exports = {
   plugins,
   pluginAction,
   summary,
+  runPrint,
 };

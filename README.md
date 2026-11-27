@@ -7,7 +7,7 @@ A local workspace for the projects on this machine, meant to replace a separate 
 - a **Browse Files** view to browse any folder on this machine or an SSH machine, download files or whole folders (ZIP) and upload files or folders;
 - Source Control with side-by-side git diffs and commit messages written by a local AI;
 - Claude Code chat that shows your 5-hour and weekly usage limits and keeps Claude Code up to date;
-- Claude Insights: what to improve (alerts with estimated cost, a fix, and the chats to look at), cost by day, model and project, which agents do the work, and a per-chat flow
+- Claude Insights: what to improve (alerts with estimated cost, a fix, and the chats to look at), cost by day, model and project, which agents do the work, and a per-chat flow; Checks: ask Claude (haiku/sonnet/opus) how to improve using only the activity since the last check, with a timeline of past asks, token-improvement chats and weekly token reports (`~/.claude/reports/token-weekly/`)
   checks and a per-session flow timeline, read from the local Claude Code transcripts;
 - a chat with a local AI model (Ollama, LM Studio or any OpenAI-compatible server);
 - a database client for PostgreSQL, MySQL/MariaDB, SQL Server and SQLite, with backup and restore;
