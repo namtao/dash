@@ -27,6 +27,7 @@ const localAi = require("./src/local-ai");
 const claudeUpdate = require("./src/claude-update");
 const claudeWarmup = require("./src/claude-warmup");
 const claudeManager = require("./src/claude-manager");
+const claudeInsights = require("./src/claude-insights");
 const codeTools = require("./src/code-tools");
 const cryptoPrices = require("./src/crypto-prices");
 const auth = require("./src/auth");
@@ -510,6 +511,8 @@ route("PUT", "/api/claude/sessions/:id", async (req, { id }) => claude.configure
 
 // ---------- Quản lý Claude Code (lịch sử mọi thư mục, skills, hooks, MCP, plugin…) ----------
 const q = (url, k) => url.searchParams.get(k) || "";
+route("GET", "/api/claude/insights", (req, p, url) => claudeInsights.overview({ days: q(url, "days") === "all" ? 0 : Number(q(url, "days")) || 30, replyWords: q(url, "words"), ctxLimit: q(url, "ctx"), checkRe: q(url, "check"), lang: q(url, "lang") }));
+route("GET", "/api/claude/insights/session/:sid", (req, { sid }, url) => claudeInsights.session(sid, { replyWords: q(url, "words"), ctxLimit: q(url, "ctx"), checkRe: q(url, "check"), lang: q(url, "lang") }));
 route("GET", "/api/claude/manage/sessions", (req, p, url) => claudeManager.sessions({ cwd: q(url, "cwd"), scope: q(url, "scope") || "all" }));
 route("GET", "/api/claude/manage/sessions/:sid", (req, { sid }, url) => claudeManager.messages(sid, q(url, "cwd")));
 route("GET", "/api/claude/manage/sessions/:sid/summary", (req, { sid }, url) => claudeManager.summary(sid, q(url, "cwd")));

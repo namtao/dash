@@ -11,6 +11,7 @@
   const svg = (d) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
   const IC = {
     menu: svg('<path d="M4 7h16M4 12h16M4 17h16"/>'),
+    chart: svg('<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>'),
     plus: svg('<path d="M12 5v14M5 12h14"/>'),
     split: svg('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M12 4v16"/>'),
     splitDown: svg('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 12h18"/>'),
@@ -138,7 +139,7 @@
             cmdRow("terminal.splitDown", IC.splitDown, "Split down") +
             cmdRow("terminal.toggleKeys", W.ICON.keys, "Extra keys", { hint: store.get("termKeys", W.touch()) ? "On" : "Off" })
         )}
-        ${section("Claude", cmdRow("claude.new", IC.plus, "New conversation") + cmdRow("claude.resume", IC.resume, "Resume conversation…") + cmdRow("claude.manager", IC.grid, "Claude Manager"))}
+        ${section("Claude", cmdRow("claude.new", IC.plus, "New conversation") + cmdRow("claude.resume", IC.resume, "Resume conversation…") + cmdRow("claude.manager", IC.grid, "Claude Manager") + cmdRow("claude.insights", IC.chart, "Claude Insights"))}
         ${status.trim() ? `<div class="md-sec"><div class="md-sec-title">Status</div><div class="md-status">${status}</div></div>` : ""}
       </div>
       <div class="md-foot">

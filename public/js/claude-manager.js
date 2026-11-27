@@ -564,7 +564,7 @@
     if (!host) return;
     const [bar] = VIEWS[st.section];
     const remote = W.isRemote(W.folder) ? `<div class="cm-note faint">The current folder is on an SSH machine; only user-level Claude settings are shown.</div>` : "";
-    $(".cm-nav", host).innerHTML = `<div class="cm-cur"><small class="faint">Folder</small><button class="btn sm ghost mono" data-cm="folder" title="Change the current folder">${esc(W.shortPath(W.folder) || "~")}</button></div>${SECTIONS.map(([id, label]) => `<a href="#" class="${st.section === id ? "active" : ""}" data-sec="${id}">${esc(label)}<span class="faint">${count(id)}</span></a>`).join("")}`;
+    $(".cm-nav", host).innerHTML = `<div class="cm-cur"><small class="faint">Folder</small><button class="btn sm ghost mono" data-cm="folder" title="Change the current folder">${esc(W.shortPath(W.folder) || "~")}</button></div>${SECTIONS.map(([id, label]) => `<a href="#" class="${st.section === id ? "active" : ""}" data-sec="${id}">${esc(label)}<span class="faint">${count(id)}</span></a>`).join("")}<button class="btn sm ghost cm-ext" data-cmd="claude.insights" title="Tokens, cost, team and rule compliance">Insights dashboard ↗</button>`;
     $(".cm-body", host).innerHTML = `<h2>${esc(SECTIONS.find(([id]) => id === st.section)[1])}</h2>${remote}<div class="cm-bar">${bar()}</div><div class="cm-list"></div>`;
     paintList();
   }
@@ -722,6 +722,7 @@
     if (!cwd()) st.hookScope = st.permScope = "user";
     reload();
   });
+  W.openClaudeTranscript = (s) => openTranscript(s);
   W.registerRestorer("claude-manager", () => open());
   W.command("claude.manager", "Claude: Claude Manager (conversations, skills, hooks, MCP, plugins…)", () => open());
   W.command("claude.conversations", "Claude: browse all conversations…", () => open("sessions"));
