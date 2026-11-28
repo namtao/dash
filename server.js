@@ -856,6 +856,8 @@ const broadcast = (msg) => wss.clients.forEach((ws) => send(ws, msg));
 
 wss.on("connection", (ws) => {
   ws.attached = new Set();
+  ws.alive = true;
+  ws.on("pong", () => (ws.alive = true));
   ws.on("message", (raw) => {
     let m;
     try {
@@ -870,11 +872,22 @@ wss.on("connection", (ws) => {
       } else if (m.t === "term.detach") ws.attached.delete(m.id);
       else if (m.t === "term.input") terminals.write(m.id, m.data);
       else if (m.t === "term.resize") terminals.resize(m.id, m.cols, m.rows);
+      else if (m.t === "ping") send(ws, { t: "pong" });
     } catch (e) {
       send(ws, { t: "error", message: e.message, id: m.id });
     }
   });
 });
+
+// Máy khách mất mạng mà không đóng socket (điện thoại đổi mạng, Tailscale relay rớt): ping mỗi 30 giây,
+// không trả lời thì cắt để không giữ kết nối chết và không đẩy dữ liệu terminal vào đó.
+setInterval(() => {
+  wss.clients.forEach((ws) => {
+    if (!ws.alive) return ws.terminate();
+    ws.alive = false;
+    ws.ping();
+  });
+}, 30000).unref();
 
 terminals.on((event, p) => {
   if (event === "data") {

@@ -59,28 +59,64 @@ const W = (() => {
   // ---------- WebSocket ----------
   let sock = null;
   let queue = [];
+  // Heartbeat: qua Tailscale relay hoặc khi iPhone đổi mạng / mở lại app, socket có thể chết mà không có onclose
+  // (readyState vẫn 1). Gửi ping định kỳ; quá hạn không nhận được gì thì bỏ socket cũ, nối lại ngay.
+  let lastMsg = 0;
+  let probe = null;
   function connect() {
-    sock = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws`);
-    sock.onopen = () => {
-      queue.forEach((m) => sock.send(m));
+    const s = (sock = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws`));
+    lastMsg = Date.now();
+    s.onopen = () => {
+      if (sock !== s) return;
+      lastMsg = Date.now();
+      queue.forEach((m) => s.send(m));
       queue = [];
       W.emit("ws:open");
     };
-    sock.onmessage = (e) => {
+    s.onmessage = (e) => {
+      lastMsg = Date.now();
       let m;
       try {
         m = JSON.parse(e.data);
       } catch {
         return;
       }
+      if (m.t === "pong") return;
       (W.handlers.get(m.t) || []).forEach((fn) => fn(m));
     };
-    sock.onclose = (e) => {
+    s.onclose = (e) => {
+      if (sock !== s) return;
       if (e.code === 4401) return toLogin();
       W.emit("ws:close");
-      setTimeout(connect, 1500);
+      setTimeout(() => sock === s && connect(), 1500);
     };
   }
+  function reconnectNow() {
+    const old = sock;
+    clearTimeout(probe);
+    probe = null;
+    W.emit("ws:close");
+    connect();
+    try {
+      old?.close();
+    } catch {}
+  }
+  // Gửi ping, chờ trả lời trong `wait` ms; không có gì về thì coi socket đã chết
+  function check(wait) {
+    if (sock?.readyState !== 1 || probe) return;
+    const sent = Date.now();
+    sock.send('{"t":"ping"}');
+    probe = setTimeout(() => {
+      probe = null;
+      if (lastMsg < sent) reconnectNow();
+    }, wait);
+  }
+  setInterval(() => check(10000), 20000);
+  // Quay lại tab / app hoặc có mạng lại: kiểm nhanh thay vì chờ chu kỳ
+  const wake = () => document.visibilityState === "visible" && check(3000);
+  document.addEventListener("visibilitychange", wake);
+  addEventListener("pageshow", wake);
+  addEventListener("online", wake);
   W.send = (msg) => {
     const s = JSON.stringify(msg);
     if (sock?.readyState === 1) sock.send(s);
